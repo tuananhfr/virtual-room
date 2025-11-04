@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /**
  * MiniMap component - Hiển thị floor plan với markers cho các phòng
@@ -17,6 +17,8 @@ const MiniMap: React.FC<MiniMapProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
+  const [isHoveringImage, setIsHoveringImage] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Reset pan position when zoom returns to 1 or less
   useEffect(() => {
@@ -29,19 +31,39 @@ const MiniMap: React.FC<MiniMapProps> = ({
     return null;
   }
 
-  // Handle zoom with mouse wheel
-  const handleWheel = (e: React.WheelEvent) => {
+  // Handle zoom with mouse wheel (native, non-passive)
+  const handleWheelNative = (e: WheelEvent) => {
+    // Ngăn cuộn form bên ngoài khi lăn trong minimap
     e.preventDefault();
+    e.stopPropagation();
     const delta = e.deltaY * -0.001;
     const newZoom = Math.min(Math.max(0.5, zoom + delta), 2);
     setZoom(newZoom);
   };
 
+  // Attach non-passive wheel listener to container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener("wheel", handleWheelNative, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheelNative as EventListener);
+    };
+  }, [zoom]);
+
   // Handle pan start
   const handlePanStart = (e: React.MouseEvent) => {
-    if (zoom > 1 && !isEditMode) {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    // Allow pan when zoomed in
+    // In edit mode, only pan if not clicking on a marker (marker handles its own drag)
+    if (zoom > 1) {
+      const target = e.target as HTMLElement;
+      // Check if clicking on a room marker or its children
+      const isMarkerClick = target.closest("[data-room-marker]");
+
+      if (!isMarkerClick) {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      }
     }
   };
 
@@ -108,13 +130,24 @@ const MiniMap: React.FC<MiniMapProps> = ({
         style={{
           width: minimapConfig.width,
           height: minimapConfig.height,
-          cursor: zoom > 1 && !isEditMode ? (isPanning ? "grabbing" : "grab") : "default",
+          cursor:
+            zoom > 1 && !isEditMode
+              ? isPanning
+                ? "grabbing"
+                : "grab"
+              : "default",
+          // Chặn scroll chaining lên form khi đang hover ảnh
+          overscrollBehavior: isHoveringImage ? "contain" : undefined,
         }}
-        onWheel={handleWheel}
+        ref={containerRef}
         onMouseDown={handlePanStart}
         onMouseMove={handlePanMove}
         onMouseUp={handlePanEnd}
-        onMouseLeave={handlePanEnd}
+        onMouseLeave={() => {
+          handlePanEnd();
+          setIsHoveringImage(false);
+        }}
+        onMouseEnter={() => setIsHoveringImage(true)}
       >
         {/* Zoomable container for image and markers */}
         <div
@@ -139,58 +172,62 @@ const MiniMap: React.FC<MiniMapProps> = ({
 
           {/* Room markers */}
           {rooms.map((room) => {
-          const hasPosition =
-            room.minimapPosition &&
-            typeof room.minimapPosition.x === "number" &&
-            typeof room.minimapPosition.y === "number";
+            const hasPosition =
+              room.minimapPosition &&
+              typeof room.minimapPosition.x === "number" &&
+              typeof room.minimapPosition.y === "number";
 
-          if (!hasPosition && !isEditMode) return null;
+            if (!hasPosition && !isEditMode) return null;
 
-          const x = hasPosition ? room.minimapPosition!.x : 50;
-          const y = hasPosition ? room.minimapPosition!.y : 50;
+            const x = hasPosition ? room.minimapPosition!.x : 50;
+            const y = hasPosition ? room.minimapPosition!.y : 50;
 
-          const isCurrentRoom = room.room_id === currentRoomId;
-          const isHovered = hoveredRoomId === room.room_id;
+            const isCurrentRoom = room.room_id === currentRoomId;
+            const isHovered = hoveredRoomId === room.room_id;
 
-          return (
-            <div
-              key={room.room_id}
-              className={`position-absolute rounded-circle border border-3 border-white shadow ${
-                isCurrentRoom || isHovered ? "bg-danger" : "bg-primary"
-              }`}
-              style={{
-                left: `${x}%`,
-                top: `${y}%`,
-                width: "16px",
-                height: "16px",
-                cursor: isEditMode ? "move" : "pointer",
-                opacity: hasPosition ? 1 : 0.5,
-                transform: isCurrentRoom || isHovered
-                  ? `translate(-50%, -50%) scale(${1.2 / zoom})`
-                  : `translate(-50%, -50%) scale(${1 / zoom})`,
-                transition: "transform 0.1s ease-out, background-color 0.2s ease-out",
-                zIndex: isCurrentRoom || isHovered ? 20 : 10,
-              }}
-              onClick={() => handleMarkerClick(room.room_id)}
-              onMouseEnter={() => !isEditMode && setHoveredRoomId(room.room_id)}
-              onMouseLeave={() => !isEditMode && setHoveredRoomId(null)}
-              draggable={isEditMode}
-              onDragStart={(e) => handleDragStart(e, room)}
-              title={room.room_label}
-            >
+            return (
               <div
-                className="position-absolute top-100 start-50 translate-middle-x mt-1 badge bg-dark text-white small"
+                key={room.room_id}
+                className={`position-absolute rounded-circle border border-3 border-white shadow ${
+                  isCurrentRoom || isHovered ? "bg-danger" : "bg-primary"
+                }`}
                 style={{
-                  fontSize: "11px",
-                  whiteSpace: "nowrap",
-                  pointerEvents: "none",
+                  left: `${x}%`,
+                  top: `${y}%`,
+                  width: "16px",
+                  height: "16px",
+                  cursor: isEditMode ? "move" : "pointer",
+                  opacity: hasPosition ? 1 : 0.5,
+                  transform:
+                    isCurrentRoom || isHovered
+                      ? `translate(-50%, -50%) scale(${1.2 / zoom})`
+                      : `translate(-50%, -50%) scale(${1 / zoom})`,
+                  transition:
+                    "transform 0.1s ease-out, background-color 0.2s ease-out",
+                  zIndex: isCurrentRoom || isHovered ? 20 : 10,
                 }}
+                onClick={() => handleMarkerClick(room.room_id)}
+                onMouseEnter={() =>
+                  !isEditMode && setHoveredRoomId(room.room_id)
+                }
+                onMouseLeave={() => !isEditMode && setHoveredRoomId(null)}
+                draggable={isEditMode}
+                onDragStart={(e) => handleDragStart(e, room)}
+                title={room.room_label}
               >
-                {room.room_label}
+                <div
+                  className="position-absolute top-100 start-50 translate-middle-x mt-1 badge bg-dark text-white small"
+                  style={{
+                    fontSize: "11px",
+                    whiteSpace: "nowrap",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {room.room_label}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
         </div>
       </div>
 
