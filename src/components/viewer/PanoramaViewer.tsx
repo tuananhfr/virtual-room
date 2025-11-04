@@ -12,6 +12,10 @@ interface Controls {
   phi: number;
   theta: number;
   hasMoved: boolean;
+  isAnimating: boolean;
+  targetLon: number;
+  targetLat: number;
+  animationCallback?: () => void;
 }
 
 // Extend CanvasRenderingContext2D to include roundRect method
@@ -33,6 +37,7 @@ const PanoramaViewer = ({
   hotspots = [],
   onHotspotClick,
   roomLabel,
+  triggerHotspot,
 }: PanoramaViewerProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -103,17 +108,6 @@ const PanoramaViewer = ({
       hotspotsRef.current = [];
 
       hotspots.forEach((hotspot) => {
-        // Create hotspot marker with reduced segments for performance
-        const geometry = new THREE.SphereGeometry(15, 16, 12); // Reduced from 32, 32
-        const color = 0x00ff00; // Always green for links
-
-        const material = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.8,
-        });
-        const sphere = new THREE.Mesh(geometry, material);
-
         // Calculate position from pitch and yaw
         const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
         const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
@@ -123,9 +117,68 @@ const PanoramaViewer = ({
         const y = radius * Math.sin(pitch);
         const z = radius * Math.cos(pitch) * Math.cos(yaw);
 
-        sphere.position.set(x, y, z);
+        // Create icon hotspot marker using canvas with Bootstrap icon
+        const iconCanvas = document.createElement("canvas");
+        const iconContext = iconCanvas.getContext("2d");
+        if (!iconContext) return;
 
-        sphere.userData.hotspot = hotspot;
+        iconCanvas.width = 256;
+        iconCanvas.height = 256;
+
+        // Draw arrow-up-circle icon (Bootstrap outline-primary style)
+        const primaryColor = "black"; // Bootstrap primary color
+
+        // Draw circle background (slightly filled for better visibility)
+        iconContext.fillStyle = "gray";
+        iconContext.beginPath();
+        iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+        iconContext.fill();
+
+        // Draw circle outline
+        iconContext.strokeStyle = primaryColor;
+        iconContext.lineWidth = 12;
+        iconContext.beginPath();
+        iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+        iconContext.stroke();
+
+        // Draw arrow up
+        iconContext.strokeStyle = primaryColor;
+        iconContext.lineWidth = 12;
+        iconContext.lineCap = "round";
+        iconContext.lineJoin = "round";
+
+        // Arrow shaft
+        iconContext.beginPath();
+        iconContext.moveTo(128, 180);
+        iconContext.lineTo(128, 80);
+        iconContext.stroke();
+
+        // Arrow head
+        iconContext.beginPath();
+        iconContext.moveTo(128, 80);
+        iconContext.lineTo(90, 118);
+        iconContext.stroke();
+
+        iconContext.beginPath();
+        iconContext.moveTo(128, 80);
+        iconContext.lineTo(166, 118);
+        iconContext.stroke();
+
+        const iconTexture = new THREE.CanvasTexture(iconCanvas);
+        const iconMaterial = new THREE.SpriteMaterial({
+          map: iconTexture,
+          transparent: true,
+        });
+        const iconSprite = new THREE.Sprite(iconMaterial);
+
+        iconSprite.position.set(x, y, z);
+        iconSprite.scale.set(40, 40, 1); // Larger icon
+        iconSprite.userData.hotspot = hotspot;
+        iconSprite.userData.isIcon = true; // Mark as icon for hover effect
+        iconSprite.userData.basePosition = { x, y, z }; // Store base position
+
+        scene.add(iconSprite);
+        hotspotsRef.current.push(iconSprite);
 
         // Add text label using canvas texture
         if (hotspot.label) {
@@ -135,36 +188,51 @@ const PanoramaViewer = ({
           ) as CanvasRenderingContext2DExtended | null;
           if (!context) return;
 
-          canvas.width = 512;
-          canvas.height = 128;
+          // Measure text to calculate proper canvas size
+          context.font = "bold 64px Arial";
+          const textMetrics = context.measureText(hotspot.label);
+          const textWidth = textMetrics.width;
+          const padding = 40; // Padding around text
+          const borderRadius = 20;
 
-          // Background
+          canvas.width = textWidth + padding * 2;
+          canvas.height = 160;
+
+          // Re-set font after canvas resize
+          context.font = "bold 64px Arial";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+
+          // Background with rounded corners
           context.fillStyle = "rgba(0, 0, 0, 0.7)";
-          context.roundRect(0, 0, canvas.width, canvas.height, 20);
+          context.roundRect(0, 0, canvas.width, canvas.height, borderRadius);
           context.fill();
 
           // Text
           context.fillStyle = "white";
-          context.font = "bold 48px Arial";
-          context.textAlign = "center";
-          context.textBaseline = "middle";
           context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
 
           const texture = new THREE.CanvasTexture(canvas);
           const labelMaterial = new THREE.SpriteMaterial({ map: texture });
           const labelSprite = new THREE.Sprite(labelMaterial);
 
-          // Position label slightly offset from hotspot
-          labelSprite.position.set(x, y + 25, z);
-          labelSprite.scale.set(50, 12.5, 1);
+          // Calculate aspect ratio for proper scaling
+          const aspectRatio = canvas.width / canvas.height;
+          const labelHeight = 17.5;
+          const labelWidth = labelHeight * aspectRatio;
+
+          // Position label below icon
+          labelSprite.position.set(x, y - 30, z);
+          labelSprite.scale.set(labelWidth, labelHeight, 1);
           labelSprite.userData.hotspot = hotspot;
+          labelSprite.userData.baseYOffset = -30; // Store base offset
+
+          // Link label to icon for hover effect
+          iconSprite.userData.labelSprite = labelSprite;
 
           scene.add(labelSprite);
           hotspotsRef.current.push(labelSprite);
         }
-
-        scene.add(sphere);
-        hotspotsRef.current.push(sphere);
       });
     };
 
@@ -172,7 +240,7 @@ const PanoramaViewer = ({
     addHotspots(scene, hotspots);
 
     // Mouse controls using spherical coordinates (lon/lat)
-    const controls = {
+    const controls: Controls = {
       isUserInteracting: false,
       onPointerDownMouseX: 0,
       onPointerDownMouseY: 0,
@@ -183,6 +251,9 @@ const PanoramaViewer = ({
       phi: 0,
       theta: 0,
       hasMoved: false,
+      isAnimating: false,
+      targetLon: 0,
+      targetLat: 0,
     };
     controlsRef.current = controls;
 
@@ -191,6 +262,7 @@ const PanoramaViewer = ({
     const mouse = new THREE.Vector2();
     let lastHoverCheck = 0;
     const HOVER_CHECK_THROTTLE = 50; // ms
+    let hoveredHotspot: THREE.Object3D | null = null;
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.isPrimary === false) return;
@@ -201,6 +273,8 @@ const PanoramaViewer = ({
       controls.onPointerDownMouseY = event.clientY;
       controls.onPointerDownLon = controls.lon;
       controls.onPointerDownLat = controls.lat;
+
+      renderer.domElement.style.cursor = "grabbing";
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -227,7 +301,7 @@ const PanoramaViewer = ({
         if (now - lastHoverCheck > HOVER_CHECK_THROTTLE) {
           lastHoverCheck = now;
 
-          // Check if hovering over hotspot to change cursor
+          // Check if hovering over hotspot to change cursor and scale
           const rect = renderer.domElement.getBoundingClientRect();
           mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
           mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -237,8 +311,50 @@ const PanoramaViewer = ({
 
           if (intersects.length > 0) {
             renderer.domElement.style.cursor = "pointer";
+
+            // Find the icon sprite (not label) in intersects
+            const iconIntersect = intersects.find(
+              (i) => i.object.userData.isIcon
+            );
+            const newHovered = iconIntersect ? iconIntersect.object : null;
+
+            if (newHovered && newHovered !== hoveredHotspot) {
+              // Reset previous hovered icon
+              if (hoveredHotspot && hoveredHotspot instanceof THREE.Sprite) {
+                hoveredHotspot.scale.set(40, 40, 1);
+                // Reset label position
+                const prevLabel = hoveredHotspot.userData.labelSprite;
+                if (prevLabel && prevLabel instanceof THREE.Sprite) {
+                  const pos = hoveredHotspot.userData.basePosition;
+                  prevLabel.position.y = pos.y - 30;
+                }
+              }
+              // Scale up new hovered icon
+              if (newHovered instanceof THREE.Sprite) {
+                newHovered.scale.set(50, 50, 1); // 25% larger
+                // Push label down to avoid overlap
+                const label = newHovered.userData.labelSprite;
+                if (label && label instanceof THREE.Sprite) {
+                  const pos = newHovered.userData.basePosition;
+                  label.position.y = pos.y - 35; // Push down 5 units more
+                }
+              }
+              hoveredHotspot = newHovered;
+            }
           } else {
             renderer.domElement.style.cursor = "grab";
+
+            // Reset hovered icon scale
+            if (hoveredHotspot && hoveredHotspot instanceof THREE.Sprite) {
+              hoveredHotspot.scale.set(40, 40, 1);
+              // Reset label position
+              const label = hoveredHotspot.userData.labelSprite;
+              if (label && label instanceof THREE.Sprite) {
+                const pos = hoveredHotspot.userData.basePosition;
+                label.position.y = pos.y - 30;
+              }
+              hoveredHotspot = null;
+            }
           }
         }
       }
@@ -247,6 +363,8 @@ const PanoramaViewer = ({
     const onPointerUp = (event: PointerEvent) => {
       if (event.isPrimary === false) return;
       controls.isUserInteracting = false;
+
+      renderer.domElement.style.cursor = "grab";
     };
 
     // Mouse wheel for zoom
@@ -281,8 +399,12 @@ const PanoramaViewer = ({
         controls.hasMoved = true;
       }
 
-      controls.lon = (controls.onPointerDownMouseX - event.touches[0].clientX) * 0.1 + controls.onPointerDownLon;
-      controls.lat = (event.touches[0].clientY - controls.onPointerDownMouseY) * 0.1 + controls.onPointerDownLat;
+      controls.lon =
+        (controls.onPointerDownMouseX - event.touches[0].clientX) * 0.1 +
+        controls.onPointerDownLon;
+      controls.lat =
+        (event.touches[0].clientY - controls.onPointerDownMouseY) * 0.1 +
+        controls.onPointerDownLat;
     };
 
     const onTouchEnd = () => {
@@ -290,8 +412,8 @@ const PanoramaViewer = ({
     };
 
     const onClick = (event: MouseEvent) => {
-      // Không trigger click nếu vừa drag
-      if (controls.hasMoved) return;
+      // Không trigger click nếu vừa drag hoặc đang animate
+      if (controls.hasMoved || controls.isAnimating) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -303,7 +425,30 @@ const PanoramaViewer = ({
       if (intersects.length > 0) {
         const hotspot = intersects[0].object.userData.hotspot as Hotspot;
         if (hotspot && onHotspotClick) {
-          onHotspotClick(hotspot);
+          // Rotate camera to look directly at the hotspot
+          // Get hotspot 3D position
+          const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
+          const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
+
+          // Hotspot position in 3D space
+          const hotspotX = Math.cos(pitch) * Math.sin(yaw);
+          const hotspotY = Math.sin(pitch);
+          const hotspotZ = Math.cos(pitch) * Math.cos(yaw);
+
+          // Convert 3D position back to lon/lat for camera
+          // lon = atan2(z, x) -> horizontal angle
+          // lat = asin(y) -> vertical angle
+          const targetLon = THREE.MathUtils.radToDeg(
+            Math.atan2(hotspotZ, hotspotX)
+          );
+          const targetLat = THREE.MathUtils.radToDeg(Math.asin(hotspotY));
+
+          controls.isAnimating = true;
+          controls.targetLon = targetLon;
+          controls.targetLat = targetLat;
+          controls.animationCallback = () => {
+            onHotspotClick(hotspot);
+          };
         }
       }
     };
@@ -336,6 +481,39 @@ const PanoramaViewer = ({
     // Animation loop with spherical coordinates
     const animate = () => {
       requestAnimationFrame(animate);
+
+      // Handle smooth rotation animation to hotspot
+      if (controls.isAnimating && !controls.isUserInteracting) {
+        const speed = 0.05; // Animation speed (0-1, higher = faster)
+        const threshold = 0.5; // Stop threshold in degrees
+
+        // Calculate difference between current and target
+        let lonDiff = controls.targetLon - controls.lon;
+        let latDiff = controls.targetLat - controls.lat;
+
+        // Normalize longitude difference to shortest path (-180 to 180)
+        while (lonDiff > 180) lonDiff -= 360;
+        while (lonDiff < -180) lonDiff += 360;
+
+        // Check if we're close enough to target
+        if (Math.abs(lonDiff) < threshold && Math.abs(latDiff) < threshold) {
+          // Animation complete
+          controls.lon = controls.targetLon;
+          controls.lat = controls.targetLat;
+          controls.isAnimating = false;
+
+          // Execute callback (navigate to room)
+          if (controls.animationCallback) {
+            const callback = controls.animationCallback;
+            callback();
+            controls.animationCallback = undefined;
+          }
+        } else {
+          // Smoothly interpolate towards target
+          controls.lon += lonDiff * speed;
+          controls.lat += latDiff * speed;
+        }
+      }
 
       // Limit latitude
       controls.lat = Math.max(-85, Math.min(85, controls.lat));
@@ -400,6 +578,36 @@ const PanoramaViewer = ({
       renderer.dispose();
     };
   }, [panoramaUrl, hotspots, onHotspotClick]);
+
+  // Handle external hotspot trigger (from minimap)
+  useEffect(() => {
+    if (triggerHotspot && controlsRef.current) {
+      const controls = controlsRef.current;
+
+      // Get hotspot 3D position
+      const pitch = THREE.MathUtils.degToRad(triggerHotspot.pitch || 0);
+      const yaw = THREE.MathUtils.degToRad(triggerHotspot.yaw || 0);
+
+      // Hotspot position in 3D space
+      const hotspotX = Math.cos(pitch) * Math.sin(yaw);
+      const hotspotY = Math.sin(pitch);
+      const hotspotZ = Math.cos(pitch) * Math.cos(yaw);
+
+      // Convert 3D position back to lon/lat for camera
+      const targetLon = THREE.MathUtils.radToDeg(
+        Math.atan2(hotspotZ, hotspotX)
+      );
+      const targetLat = THREE.MathUtils.radToDeg(Math.asin(hotspotY));
+
+      // Set animation target to look at the hotspot
+      controls.isAnimating = true;
+      controls.targetLon = targetLon;
+      controls.targetLat = targetLat;
+      controls.animationCallback = () => {
+        onHotspotClick(triggerHotspot);
+      };
+    }
+  }, [triggerHotspot, onHotspotClick]);
 
   return (
     <div

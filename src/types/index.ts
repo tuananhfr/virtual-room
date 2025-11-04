@@ -34,18 +34,25 @@ declare global {
 
   // Minimap configuration
   export interface MinimapConfig {
-    enabled: boolean;
     url: string;
     width: number;
     height: number;
+  }
+
+  // Floor configuration - each floor has its own minimap and rooms
+  export interface Floor {
+    floor_id: string; // e.g., "floor_1", "floor_2"
+    floor_number: number; // 1, 2, 3, etc.
+    floor_label: string; // e.g., "Ground Floor", "First Floor"
+    minimap: MinimapConfig;
+    rooms: Room[];
   }
 
   // House data structure
   export interface HouseData {
     houseName: string;
     description: string;
-    minimap: MinimapConfig;
-    rooms: Room[];
+    floors: Floor[]; // Array of floors
   }
 
   // Component Props
@@ -56,6 +63,7 @@ declare global {
     onCanvasClick?: (pitch: number, yaw: number) => void;
     editMode?: boolean;
     roomLabel?: string;
+    triggerHotspot?: Hotspot | null;
   }
 
   export interface RoomSelectorProps {
@@ -79,8 +87,8 @@ declare global {
 
   export interface ImageUploaderProps {
     onImageUploaded: (url: string) => void;
-    currentUrl?: string;
     label?: string;
+    currentUrl?: string;
   }
 
   export interface MiniMapProps {

@@ -6,6 +6,8 @@ interface HotspotEditorProps {
   existingHotspots?: Hotspot[];
   onAddHotspot: (position: { pitch: number; yaw: number }) => void;
   onRemoveHotspot: (index: number) => void;
+  onUpdateHotspot?: (index: number, updatedHotspot: Hotspot) => void;
+  availableRooms?: Room[];
 }
 
 interface MouseControls {
@@ -23,6 +25,8 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
   existingHotspots = [],
   onAddHotspot,
   onRemoveHotspot,
+  onUpdateHotspot,
+  availableRooms = [],
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -34,6 +38,21 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     hotspot: Hotspot;
     index: number;
   } | null>(null);
+  const previousHotspotCountRef = useRef<number>(existingHotspots.length);
+
+  // Auto-select newly added hotspot
+  useEffect(() => {
+    if (existingHotspots.length > previousHotspotCountRef.current) {
+      // A new hotspot was added, select it
+      const newIndex = existingHotspots.length - 1;
+      const newHotspot = existingHotspots[newIndex];
+      setSelectedHotspot({
+        hotspot: newHotspot,
+        index: newIndex,
+      });
+    }
+    previousHotspotCountRef.current = existingHotspots.length;
+  }, [existingHotspots.length]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -175,6 +194,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 
         if (onAddHotspot) {
           onAddHotspot({ pitch, yaw });
+          // The useEffect hook will auto-select the newly added hotspot
         }
       }
     };
@@ -276,25 +296,98 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
         Click anywhere to add hotspot | Click existing hotspot to select
       </div>
 
-      {/* Selected hotspot info */}
+      {/* Selected hotspot edit form */}
       {selectedHotspot && (
-        <div className="position-absolute top-0 end-0 m-3 bg-white shadow-lg rounded p-3 d-flex align-items-center gap-3">
-          <div>
-            <strong>Selected:</strong>{" "}
-            {selectedHotspot.hotspot.label || "Unnamed"}
+        <div className="position-absolute top-0 end-0 m-3 bg-white shadow-lg rounded p-3" style={{ minWidth: "350px" }}>
+          <div className="mb-3">
+            <label className="form-label fw-semibold small">Hotspot Label:</label>
+            <input
+              type="text"
+              className="form-control form-control-sm"
+              placeholder="e.g., Go to Kitchen"
+              value={selectedHotspot.hotspot.label}
+              onChange={(e) => {
+                if (onUpdateHotspot) {
+                  onUpdateHotspot(selectedHotspot.index, {
+                    ...selectedHotspot.hotspot,
+                    label: e.target.value,
+                  });
+                  setSelectedHotspot({
+                    ...selectedHotspot,
+                    hotspot: {
+                      ...selectedHotspot.hotspot,
+                      label: e.target.value,
+                    },
+                  });
+                }
+              }}
+            />
           </div>
-          <button
-            onClick={() => {
-              if (onRemoveHotspot) {
-                onRemoveHotspot(selectedHotspot.index);
-                setSelectedHotspot(null);
-              }
-            }}
-            className="btn btn-danger btn-sm"
-          >
-            <i className="bi bi-trash me-1"></i>
-            Delete
-          </button>
+
+          <div className="mb-3">
+            <label className="form-label fw-semibold small">Target Room:</label>
+            <select
+              className="form-select form-select-sm"
+              value={selectedHotspot.hotspot.targetRoom || ""}
+              onChange={(e) => {
+                const targetRoomId = e.target.value;
+                const targetRoom = availableRooms.find((r) => r.room_id === targetRoomId);
+                if (onUpdateHotspot) {
+                  onUpdateHotspot(selectedHotspot.index, {
+                    ...selectedHotspot.hotspot,
+                    targetRoom: targetRoomId,
+                    label: targetRoom
+                      ? `Đi đến ${targetRoom.room_label}`
+                      : selectedHotspot.hotspot.label,
+                  });
+                  setSelectedHotspot({
+                    ...selectedHotspot,
+                    hotspot: {
+                      ...selectedHotspot.hotspot,
+                      targetRoom: targetRoomId,
+                      label: targetRoom
+                        ? `Đi đến ${targetRoom.room_label}`
+                        : selectedHotspot.hotspot.label,
+                    },
+                  });
+                }
+              }}
+            >
+              <option value="">-- Select Target Room --</option>
+              {availableRooms.map((room) => (
+                <option key={room.room_id} value={room.room_id}>
+                  {room.room_label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="small text-muted mb-3">
+            <i className="bi bi-geo-alt me-1"></i>
+            Pitch: {selectedHotspot.hotspot.pitch.toFixed(2)}° | Yaw: {selectedHotspot.hotspot.yaw.toFixed(2)}°
+          </div>
+
+          <div className="d-flex gap-2">
+            <button
+              onClick={() => setSelectedHotspot(null)}
+              className="btn btn-secondary btn-sm flex-fill"
+            >
+              <i className="bi bi-check me-1"></i>
+              Done
+            </button>
+            <button
+              onClick={() => {
+                if (onRemoveHotspot) {
+                  onRemoveHotspot(selectedHotspot.index);
+                  setSelectedHotspot(null);
+                }
+              }}
+              className="btn btn-danger btn-sm"
+            >
+              <i className="bi bi-trash me-1"></i>
+              Delete
+            </button>
+          </div>
         </div>
       )}
     </div>
