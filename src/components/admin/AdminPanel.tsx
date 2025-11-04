@@ -3,9 +3,7 @@ import HotspotEditor from "./HotspotEditor";
 import ImageUploader from "../common/ImageUploader";
 import MiniMap from "../common/MiniMap";
 
-/**
- * Component Admin Panel để quản lý rooms và hotspots
- */
+// Component quản lý admin: thêm/sửa/xóa phòng, hotspot, minimap
 const AdminPanel = ({
   houseData,
   onUpdateHouseData,
@@ -20,17 +18,16 @@ const AdminPanel = ({
     floor: 1,
     panorama: { url: "" },
     hotspots: [],
-    minimapPosition: { x: 50, y: 50 }, // Default center position
+    minimapPosition: { x: 50, y: 50 },
   });
 
-  // Add new room
+  // thêm phòng mới
   const handleAddRoom = () => {
     if (!newRoom.room_id || !newRoom.room_label || !newRoom.panorama.url) {
       alert("Please fill in Room ID, Label and Panorama URL");
       return;
     }
 
-    // Use floor from minimap config
     const roomToAdd = {
       ...newRoom,
       floor: houseData.minimap.floor,
@@ -43,18 +40,18 @@ const AdminPanel = ({
 
     onUpdateHouseData(updatedData);
 
-    // Reset form
+    // reset form
     setNewRoom({
       room_id: "",
       room_label: "",
       floor: houseData.minimap.floor,
       panorama: { url: "" },
       hotspots: [],
-      minimapPosition: { x: 50, y: 50 }, // Default center position
+      minimapPosition: { x: 50, y: 50 },
     });
   };
 
-  // Delete room
+  // xóa phòng
   const handleDeleteRoom = (roomId: string) => {
     if (!confirm("Are you sure you want to delete this room?")) return;
 
@@ -66,13 +63,13 @@ const AdminPanel = ({
     onUpdateHouseData(updatedData);
   };
 
-  // Edit room
+  // edit phòng
   const handleEditRoom = (room: Room) => {
     setEditingRoom(room);
     setShowHotspotEditor(false);
   };
 
-  // Save edited room
+  // lưu phòng đã edit
   const handleSaveEditedRoom = () => {
     if (!editingRoom) return;
 
@@ -87,7 +84,7 @@ const AdminPanel = ({
     setEditingRoom(null);
   };
 
-  // Add hotspot to editing room
+  // thêm hotspot vào phòng đang edit
   const handleAddHotspot = ({ pitch, yaw }: { pitch: number; yaw: number }) => {
     if (!editingRoom) return;
 
@@ -106,7 +103,7 @@ const AdminPanel = ({
     });
   };
 
-  // Remove hotspot
+  // xóa hotspot
   const handleRemoveHotspot = (index: number) => {
     if (!editingRoom) return;
 
@@ -116,7 +113,7 @@ const AdminPanel = ({
     });
   };
 
-  // Update hotspot
+  // cập nhật hotspot
   const handleUpdateHotspot = (index: number, updatedHotspot: Hotspot) => {
     if (!editingRoom) return;
 
@@ -128,7 +125,7 @@ const AdminPanel = ({
     });
   };
 
-  // Add hotspot to new room
+  // thêm hotspot cho phòng mới
   const handleAddNewRoomHotspot = ({ pitch, yaw }: { pitch: number; yaw: number }) => {
     const newHotspot: Hotspot = {
       id: `hs_${Date.now()}`,
@@ -145,7 +142,7 @@ const AdminPanel = ({
     });
   };
 
-  // Remove hotspot from new room
+  // xóa hotspot khỏi phòng mới
   const handleRemoveNewRoomHotspot = (index: number) => {
     setNewRoom({
       ...newRoom,
@@ -153,7 +150,7 @@ const AdminPanel = ({
     });
   };
 
-  // Update hotspot in new room
+  // cập nhật hotspot phòng mới
   const handleUpdateNewRoomHotspot = (index: number, updatedHotspot: Hotspot) => {
     setNewRoom({
       ...newRoom,
@@ -163,7 +160,7 @@ const AdminPanel = ({
     });
   };
 
-  // Update minimap config
+  // cập nhật config minimap
   const handleUpdateMinimapConfig = (config: MinimapConfig) => {
     onUpdateHouseData({
       ...houseData,
@@ -171,7 +168,7 @@ const AdminPanel = ({
     });
   };
 
-  // Update room position on minimap
+  // cập nhật vị trí phòng trên minimap
   const handleUpdateRoomPosition = (
     roomId: string,
     position: { x: number; y: number }

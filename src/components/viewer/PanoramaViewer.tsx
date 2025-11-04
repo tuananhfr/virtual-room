@@ -1,24 +1,24 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+// State điều khiển camera
 interface Controls {
   isUserInteracting: boolean;
   onPointerDownMouseX: number;
   onPointerDownMouseY: number;
-  lon: number;
+  lon: number; // góc ngang
   onPointerDownLon: number;
-  lat: number;
+  lat: number; // góc dọc
   onPointerDownLat: number;
   phi: number;
   theta: number;
-  hasMoved: boolean;
-  isAnimating: boolean;
+  hasMoved: boolean; // đã kéo chuột chưa
+  isAnimating: boolean; // đang animate camera
   targetLon: number;
   targetLat: number;
   animationCallback?: () => void;
 }
 
-// Extend CanvasRenderingContext2D to include roundRect method
 interface CanvasRenderingContext2DExtended extends CanvasRenderingContext2D {
   roundRect(
     x: number,
@@ -29,20 +29,20 @@ interface CanvasRenderingContext2DExtended extends CanvasRenderingContext2D {
   ): void;
 }
 
-// Function to add/update hotspots in scene (outside component to avoid recreating)
+// Thêm hotspots vào scene
 const addHotspots = (
   scene: THREE.Scene,
   hotspots: Hotspot[],
   hotspotsRef: React.MutableRefObject<THREE.Object3D[]>
 ) => {
-  // Clear old hotspots
+  // xóa hotspots cũ
   hotspotsRef.current.forEach((hotspot) => {
     scene.remove(hotspot);
   });
   hotspotsRef.current = [];
 
   hotspots.forEach((hotspot) => {
-    // Calculate position from pitch and yaw
+    // tính vị trí 3D từ pitch/yaw
     const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
     const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
     const radius = 400;
@@ -51,7 +51,7 @@ const addHotspots = (
     const y = radius * Math.sin(pitch);
     const z = radius * Math.cos(pitch) * Math.cos(yaw);
 
-    // Create icon hotspot marker using canvas with Bootstrap icon
+    // vẽ icon hotspot bằng canvas
     const iconCanvas = document.createElement("canvas");
     const iconContext = iconCanvas.getContext("2d");
     if (!iconContext) return;
@@ -59,35 +59,34 @@ const addHotspots = (
     iconCanvas.width = 256;
     iconCanvas.height = 256;
 
-    // Draw arrow-up-circle icon (Bootstrap outline-primary style)
-    const primaryColor = "black"; // Bootstrap primary color
+    const primaryColor = "black";
 
-    // Draw circle background (slightly filled for better visibility)
+    // vẽ background tròn
     iconContext.fillStyle = "gray";
     iconContext.beginPath();
     iconContext.arc(128, 128, 110, 0, Math.PI * 2);
     iconContext.fill();
 
-    // Draw circle outline
+    // viền tròn
     iconContext.strokeStyle = primaryColor;
     iconContext.lineWidth = 12;
     iconContext.beginPath();
     iconContext.arc(128, 128, 110, 0, Math.PI * 2);
     iconContext.stroke();
 
-    // Draw arrow up
+    // vẽ mũi tên
     iconContext.strokeStyle = primaryColor;
     iconContext.lineWidth = 12;
     iconContext.lineCap = "round";
     iconContext.lineJoin = "round";
 
-    // Arrow shaft
+    // thân mũi tên
     iconContext.beginPath();
     iconContext.moveTo(128, 180);
     iconContext.lineTo(128, 80);
     iconContext.stroke();
 
-    // Arrow head
+    // đầu mũi tên
     iconContext.beginPath();
     iconContext.moveTo(128, 80);
     iconContext.lineTo(90, 118);
@@ -106,15 +105,15 @@ const addHotspots = (
     const iconSprite = new THREE.Sprite(iconMaterial);
 
     iconSprite.position.set(x, y, z);
-    iconSprite.scale.set(40, 40, 1); // Larger icon
+    iconSprite.scale.set(40, 40, 1);
     iconSprite.userData.hotspot = hotspot;
-    iconSprite.userData.isIcon = true; // Mark as icon for hover effect
-    iconSprite.userData.basePosition = { x, y, z }; // Store base position
+    iconSprite.userData.isIcon = true; // đánh dấu là icon để hover
+    iconSprite.userData.basePosition = { x, y, z };
 
     scene.add(iconSprite);
     hotspotsRef.current.push(iconSprite);
 
-    // Add text label using canvas texture
+    // tạo label text cho hotspot
     if (hotspot.label) {
       const canvas = document.createElement("canvas");
       const context = canvas.getContext(
@@ -122,27 +121,27 @@ const addHotspots = (
       ) as CanvasRenderingContext2DExtended | null;
       if (!context) return;
 
-      // Measure text to calculate proper canvas size
+      // đo text để tính kích thước canvas
       context.font = "bold 64px Arial";
       const textMetrics = context.measureText(hotspot.label);
       const textWidth = textMetrics.width;
-      const padding = 40; // Padding around text
+      const padding = 40;
       const borderRadius = 20;
 
       canvas.width = textWidth + padding * 2;
       canvas.height = 160;
 
-      // Re-set font after canvas resize
+      // set lại font sau khi resize canvas
       context.font = "bold 64px Arial";
       context.textAlign = "center";
       context.textBaseline = "middle";
 
-      // Background with rounded corners
+      // background bo góc
       context.fillStyle = "rgba(0, 0, 0, 0.7)";
       context.roundRect(0, 0, canvas.width, canvas.height, borderRadius);
       context.fill();
 
-      // Text
+      // text trắng
       context.fillStyle = "white";
       context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
 
@@ -150,18 +149,17 @@ const addHotspots = (
       const labelMaterial = new THREE.SpriteMaterial({ map: texture });
       const labelSprite = new THREE.Sprite(labelMaterial);
 
-      // Calculate aspect ratio for proper scaling
       const aspectRatio = canvas.width / canvas.height;
       const labelHeight = 17.5;
       const labelWidth = labelHeight * aspectRatio;
 
-      // Position label below icon
+      // đặt label phía dưới icon
       labelSprite.position.set(x, y - 30, z);
       labelSprite.scale.set(labelWidth, labelHeight, 1);
       labelSprite.userData.hotspot = hotspot;
-      labelSprite.userData.baseYOffset = -30; // Store base offset
+      labelSprite.userData.baseYOffset = -30;
 
-      // Link label to icon for hover effect
+      // link label với icon để xử lý hover
       iconSprite.userData.labelSprite = labelSprite;
 
       scene.add(labelSprite);
@@ -170,9 +168,7 @@ const addHotspots = (
   });
 };
 
-/**
- * Component hiển thị panorama 360° bằng Three.js
- */
+// Component hiển thị panorama 360 độ sử dụng Three.js
 const PanoramaViewer = ({
   panoramaUrl,
   hotspots = [],
@@ -443,7 +439,7 @@ const PanoramaViewer = ({
 
       if (intersects.length > 0) {
         const hotspot = intersects[0].object.userData.hotspot as Hotspot;
-        if (hotspot && onHotspotClick) {
+        if (hotspot) {
           // Rotate camera to look directly at the hotspot
           // Get hotspot 3D position
           const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);

@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { mockHouseData } from "@/data/mockData";
 
-/**
- * Custom hook để quản lý house data với localStorage
- */
+// Hook quản lý dữ liệu house tour
 export const useHouseData = () => {
-  // Always start with empty data - NO localStorage
   const [houseData, setHouseData] = useState<HouseData>(mockHouseData);
 
-  // Export to JSON file
+  // Export dữ liệu ra file JSON
   const exportToJSON = () => {
     const dataStr = JSON.stringify(houseData, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
@@ -20,7 +17,7 @@ export const useHouseData = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Import from JSON file
+  // Import dữ liệu từ file JSON
   const importFromJSON = (file: File): Promise<HouseData> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -43,7 +40,7 @@ export const useHouseData = () => {
     });
   };
 
-  // Reset to empty
+  // Reset về trạng thái rỗng
   const resetToDefault = () => {
     if (
       confirm(

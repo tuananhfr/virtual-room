@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-/**
- * MiniMap component - Hiển thị floor plan với markers cho các phòng
- */
+// Component minimap - hiển thị sơ đồ mặt bằng với marker các phòng
 const MiniMap: React.FC<MiniMapProps> = ({
   minimapConfig,
   rooms,
@@ -20,7 +18,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
   const [isHoveringImage, setIsHoveringImage] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Reset pan position when zoom returns to 1 or less
+  // reset pan khi zoom về 1
   useEffect(() => {
     if (zoom <= 1) {
       setPan({ x: 0, y: 0 });
@@ -31,17 +29,16 @@ const MiniMap: React.FC<MiniMapProps> = ({
     return null;
   }
 
-  // Handle zoom with mouse wheel (native, non-passive)
+  // zoom bằng chuột
   const handleWheelNative = (e: WheelEvent) => {
-    // Ngăn cuộn form bên ngoài khi lăn trong minimap
-    e.preventDefault();
+    e.preventDefault(); // chặn scroll form bên ngoài
     e.stopPropagation();
     const delta = e.deltaY * -0.001;
     const newZoom = Math.min(Math.max(0.5, zoom + delta), 2);
     setZoom(newZoom);
   };
 
-  // Attach non-passive wheel listener to container
+  // gắn event wheel vào container
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -51,13 +48,10 @@ const MiniMap: React.FC<MiniMapProps> = ({
     };
   }, [zoom]);
 
-  // Handle pan start
+  // bắt đầu kéo ảnh (pan)
   const handlePanStart = (e: React.MouseEvent) => {
-    // Allow pan when zoomed in
-    // In edit mode, only pan if not clicking on a marker (marker handles its own drag)
     if (zoom > 1) {
       const target = e.target as HTMLElement;
-      // Check if clicking on a room marker or its children
       const isMarkerClick = target.closest("[data-room-marker]");
 
       if (!isMarkerClick) {
@@ -67,7 +61,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
     }
   };
 
-  // Handle pan move
+  // di chuyển ảnh
   const handlePanMove = (e: React.MouseEvent) => {
     if (isPanning) {
       setPan({
@@ -77,35 +71,33 @@ const MiniMap: React.FC<MiniMapProps> = ({
     }
   };
 
-  // Handle pan end
   const handlePanEnd = () => {
     setIsPanning(false);
   };
 
-  // Handle room marker click
+  // click vào marker để chuyển phòng
   const handleMarkerClick = (roomId: string) => {
     if (!isEditMode && onRoomChange) {
       onRoomChange(roomId);
     }
   };
 
-  // Handle drag start
+  // bắt đầu kéo marker (chế độ edit)
   const handleDragStart = (_: React.DragEvent, room: Room) => {
     if (!isEditMode) return;
     setDraggedRoom(room);
   };
 
-  // Handle drag over
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  // Handle drop - update room position
+  // thả marker -> cập nhật vị trí
   const handleDrop = (e: React.DragEvent) => {
     if (!isEditMode || !draggedRoom || !onUpdateRoomPosition) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100; // Convert to percentage
+    const x = ((e.clientX - rect.left) / rect.width) * 100; // convert sang %
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
     onUpdateRoomPosition(draggedRoom.room_id, {
@@ -149,7 +141,6 @@ const MiniMap: React.FC<MiniMapProps> = ({
         }}
         onMouseEnter={() => setIsHoveringImage(true)}
       >
-        {/* Zoomable container for image and markers */}
         <div
           style={{
             width: "100%",
@@ -161,7 +152,6 @@ const MiniMap: React.FC<MiniMapProps> = ({
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {/* Background image */}
           <img
             src={minimapConfig.url}
             alt="Floor plan"
@@ -170,13 +160,13 @@ const MiniMap: React.FC<MiniMapProps> = ({
             draggable={false}
           />
 
-          {/* Room markers */}
           {rooms.map((room) => {
             const hasPosition =
               room.minimapPosition &&
               typeof room.minimapPosition.x === "number" &&
               typeof room.minimapPosition.y === "number";
 
+            // chỉ hiện marker có vị trí (trừ khi đang edit)
             if (!hasPosition && !isEditMode) return null;
 
             const x = hasPosition ? room.minimapPosition!.x : 50;

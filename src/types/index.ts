@@ -1,46 +1,44 @@
-/**
- * TypeScript type definitions for 3D House Tour
- */
+// Định nghĩa kiểu dữ liệu cho ứng dụng 3D House Tour
 declare global {
-  // Hotspot types
+  // Hotspot - điểm tương tác trên panorama
   export interface Hotspot {
     id: string;
-    pitch: number;
-    yaw: number;
-    type: "link" | "info";
+    pitch: number; // góc dọc (lên/xuống)
+    yaw: number; // góc ngang (trái/phải)
+    type: "link" | "info"; // link: chuyển phòng, info: hiện thông tin
     label: string;
-    targetRoom?: string; // Room ID to navigate to (for link hotspots)
-    description?: string; // Description to show (for info hotspots)
+    targetRoom?: string; // ID phòng đích khi click (với type=link)
+    description?: string; // mô tả hiển thị (với type=info)
   }
 
-  // Panorama configuration
+  // Config panorama 360
   export interface Panorama {
     url: string;
-    fov?: number; // Field of view
+    fov?: number; // góc nhìn
   }
 
-  // Room data structure
+  // Dữ liệu 1 phòng
   export interface Room {
     room_id: string;
     room_label: string;
-    floor: number;
+    floor: number; // tầng
     panorama: Panorama;
     hotspots: Hotspot[];
     minimapPosition?: {
-      x: number;
-      y: number;
+      x: number; // vị trí x trên minimap
+      y: number; // vị trí y trên minimap
     };
   }
 
-  // Minimap configuration
+  // Config minimap (sơ đồ mặt bằng)
   export interface MinimapConfig {
     url: string;
     width: number;
     height: number;
-    floor: number; // Floor number for this minimap
+    floor: number;
   }
 
-  // House data structure
+  // Dữ liệu toàn bộ căn nhà
   export interface HouseData {
     houseName: string;
     description: string;
@@ -48,15 +46,15 @@ declare global {
     rooms: Room[];
   }
 
-  // Component Props
+  // Props cho PanoramaViewer
   export interface PanoramaViewerProps {
     panoramaUrl: string;
     hotspots: Hotspot[];
     onHotspotClick: (hotspot: Hotspot) => void;
-    onCanvasClick?: (pitch: number, yaw: number) => void;
+    onCanvasClick?: (pitch: number, yaw: number) => void; // click để đặt hotspot
     editMode?: boolean;
     roomLabel?: string;
-    triggerHotspot?: Hotspot | null;
+    triggerHotspot?: Hotspot | null; // hotspot được trigger từ bên ngoài
   }
 
   export interface RoomSelectorProps {
@@ -65,12 +63,14 @@ declare global {
     onRoomChange: (roomId: string) => void;
   }
 
+  // Props cho AdminPanel
   export interface AdminPanelProps {
     houseData: HouseData;
     onUpdateHouseData: (data: HouseData) => void;
     onClose: () => void;
   }
 
+  // Props cho HotspotEditor
   export interface HotspotEditorProps {
     hotspot: Hotspot;
     availableRooms: Room[];
@@ -78,18 +78,20 @@ declare global {
     onDelete: () => void;
   }
 
+  // Props cho ImageUploader
   export interface ImageUploaderProps {
     onImageUploaded: (url: string) => void;
     currentUrl?: string;
     label?: string;
   }
 
+  // Props cho MiniMap
   export interface MiniMapProps {
     minimapConfig: MinimapConfig;
     rooms: Room[];
     currentRoomId: string | null;
     onRoomChange?: (roomId: string) => void;
-    isEditMode?: boolean;
+    isEditMode?: boolean; // chế độ edit: cho phép kéo thả vị trí phòng
     onUpdateRoomPosition?: (
       roomId: string,
       position: { x: number; y: number }

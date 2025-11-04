@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 
-/**
- * Component để upload file image local
- */
+// Component upload ảnh panorama
 const ImageUploader: React.FC<ImageUploaderProps> = ({
   onImageUploaded,
   label = "Panorama Image",
@@ -10,30 +8,28 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string>(currentUrl);
 
-  // Update preview when currentUrl changes
   useEffect(() => {
     setPreviewUrl(currentUrl);
   }, [currentUrl]);
 
-  // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
+    // check file có phải ảnh không
     if (!file.type.startsWith("image/")) {
       alert("Please select an image file (JPG, PNG, etc.)");
       return;
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // giới hạn 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       alert("File too large! Maximum size is 10MB");
       return;
     }
 
-    // Convert to base64
+    // đọc file thành base64
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64Url: string = event.target!.result as string;
@@ -50,7 +46,6 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     <div className="mb-3">
       <label className="form-label fw-semibold">{label}:</label>
 
-      {/* Image Preview */}
       {previewUrl && (
         <div className="mb-3">
           <div className="border rounded p-2 bg-light">
@@ -68,7 +63,6 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         </div>
       )}
 
-      {/* File Upload */}
       <div>
         <label className="btn btn-outline-primary w-100 border-2 border-dashed py-3">
           <input

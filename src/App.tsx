@@ -4,9 +4,7 @@ import AdminPanel from "./components/admin/AdminPanel";
 import MiniMap from "./components/common/MiniMap";
 import { useHouseData } from "./hooks/useHouseData";
 
-/**
- * Main App component cho 3D house viewer
- */
+// Component chính quản lý toàn bộ ứng dụng 3D house tour
 const App = () => {
   const { houseData, setHouseData, resetToDefault } = useHouseData();
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
@@ -14,12 +12,12 @@ const App = () => {
   const [showMinimap, setShowMinimap] = useState(true);
   const minimapToggleButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Auto-select first room when rooms are available
+  // tự động chọn phòng đầu tiên khi có data
   useEffect(() => {
     if (houseData.rooms.length > 0 && !currentRoomId) {
       setCurrentRoomId(houseData.rooms[0].room_id);
     }
-    // Reset currentRoomId if current room no longer exists
+    // reset nếu phòng hiện tại bị xóa
     if (
       currentRoomId &&
       !houseData.rooms.find((r: Room) => r.room_id === currentRoomId)
@@ -30,23 +28,21 @@ const App = () => {
     }
   }, [houseData.rooms, currentRoomId]);
 
-  // Get current room data
+  // lấy data phòng hiện tại
   const currentRoom = houseData.rooms.find(
     (room: Room) => room.room_id === currentRoomId
   );
 
-  // Auto open admin panel if no rooms
   const hasNoRooms = houseData.rooms.length === 0;
 
-  // Handle room change
+  // chuyển phòng
   const handleRoomChange = (roomId: string) => {
     setCurrentRoomId(roomId);
   };
 
-  // Handle hotspot click
+  // xử lý click hotspot
   const handleHotspotClick = (hotspot: Hotspot) => {
     if (hotspot.targetRoom) {
-      // Navigate to linked room
       handleRoomChange(hotspot.targetRoom);
     }
   };

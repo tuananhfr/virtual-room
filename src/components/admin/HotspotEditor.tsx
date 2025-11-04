@@ -17,9 +17,7 @@ interface MouseControls {
   hasMoved: boolean;
 }
 
-/**
- * Component để click chọn vị trí hotspot trên panorama 3D
- */
+// Component để chọn vị trí hotspot bằng cách click trên panorama 3D
 const HotspotEditor: React.FC<HotspotEditorProps> = ({
   panoramaUrl,
   existingHotspots = [],
@@ -40,10 +38,9 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
   } | null>(null);
   const previousHotspotCountRef = useRef<number>(existingHotspots.length);
 
-  // Auto-select newly added hotspot
+  // tự động select hotspot mới thêm
   useEffect(() => {
     if (existingHotspots.length > previousHotspotCountRef.current) {
-      // A new hotspot was added, select it
       const newIndex = existingHotspots.length - 1;
       const newHotspot = existingHotspots[newIndex];
       setSelectedHotspot({
@@ -152,7 +149,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       }
     };
 
-    // Click handler - Add new hotspot or select existing
+    // xử lý click: thêm hotspot mới hoặc select hotspot cũ
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -165,7 +162,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 
       raycaster.setFromCamera(mouse, camera);
 
-      // Check if clicking existing hotspot
+      // check nếu click vào hotspot có sẵn
       const hotspotIntersects = raycaster.intersectObjects(hotspotsRef.current);
       if (hotspotIntersects.length > 0) {
         const data = hotspotIntersects[0].object.userData.hotspot as Hotspot & {
@@ -175,7 +172,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
         return;
       }
 
-      // Otherwise, create new hotspot at clicked position
+      // nếu không, tạo hotspot mới ở vị trí click
       const sphereIntersects = raycaster.intersectObjects(
         scene.children.filter(
           (obj) => (obj as THREE.Mesh).geometry?.type === "SphereGeometry"
@@ -184,7 +181,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       if (sphereIntersects.length > 0) {
         const point = sphereIntersects[0].point;
 
-        // Convert 3D position to pitch/yaw
+        // convert vị trí 3D sang pitch/yaw
         const distance = Math.sqrt(
           point.x * point.x + point.y * point.y + point.z * point.z
         );
@@ -193,7 +190,6 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 
         if (onAddHotspot) {
           onAddHotspot({ pitch, yaw });
-          // The useEffect hook will auto-select the newly added hotspot
         }
       }
     };
@@ -251,7 +247,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     };
   }, [panoramaUrl, existingHotspots, onAddHotspot]);
 
-  // Function to update hotspots visualization
+  // cập nhật hiển thị hotspots
   const updateHotspots = (scene: THREE.Scene, hotspots: Hotspot[]) => {
     hotspotsRef.current.forEach((hotspot) => {
       scene.remove(hotspot);
@@ -259,7 +255,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     hotspotsRef.current = [];
 
     hotspots.forEach((hotspot, index) => {
-      // Calculate position from pitch and yaw
+      // tính vị trí 3D từ pitch/yaw
       const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
       const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
       const radius = 400;
