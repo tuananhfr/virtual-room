@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import PanoramaViewer from "./components/viewer/PanoramaViewer";
 import AdminPanel from "./components/admin/AdminPanel";
 import MiniMap from "./components/common/MiniMap";
@@ -10,98 +10,46 @@ import { useHouseData } from "./hooks/useHouseData";
 const App = () => {
   const { houseData, setHouseData, resetToDefault } = useHouseData();
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-  const [currentFloorId, setCurrentFloorId] = useState<string | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showMinimap, setShowMinimap] = useState(true);
-  const [triggerHotspot, setTriggerHotspot] = useState<Hotspot | null>(null);
   const minimapToggleButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Get all rooms from all floors
-  const allRooms = useMemo(() => {
-    return houseData.floors.flatMap(floor => floor.rooms);
-  }, [houseData.floors]);
-
-  // Get current floor
-  const currentFloor = useMemo(() => {
-    if (currentFloorId) {
-      return houseData.floors.find(f => f.floor_id === currentFloorId);
-    }
-    // If no floor selected, use the floor of current room
-    if (currentRoomId) {
-      return houseData.floors.find(floor =>
-        floor.rooms.some(r => r.room_id === currentRoomId)
-      );
-    }
-    // Default to first floor
-    return houseData.floors[0];
-  }, [currentFloorId, currentRoomId, houseData.floors]);
 
   // Auto-select first room when rooms are available
   useEffect(() => {
-    if (allRooms.length > 0 && !currentRoomId) {
-      setCurrentRoomId(allRooms[0].room_id);
-      const floor = houseData.floors.find(f =>
-        f.rooms.some(r => r.room_id === allRooms[0].room_id)
-      );
-      if (floor) setCurrentFloorId(floor.floor_id);
+    if (houseData.rooms.length > 0 && !currentRoomId) {
+      setCurrentRoomId(houseData.rooms[0].room_id);
     }
     // Reset currentRoomId if current room no longer exists
     if (
       currentRoomId &&
-      !allRooms.find((r: Room) => r.room_id === currentRoomId)
+      !houseData.rooms.find((r: Room) => r.room_id === currentRoomId)
     ) {
       setCurrentRoomId(
-        allRooms.length > 0 ? allRooms[0].room_id : null
+        houseData.rooms.length > 0 ? houseData.rooms[0].room_id : null
       );
     }
-  }, [allRooms, currentRoomId, houseData.floors]);
-
-  // Reset triggerHotspot when room changes
-  useEffect(() => {
-    setTriggerHotspot(null);
-  }, [currentRoomId]);
+  }, [houseData.rooms, currentRoomId]);
 
   // Get current room data
-  const currentRoom = allRooms.find(
+  const currentRoom = houseData.rooms.find(
     (room: Room) => room.room_id === currentRoomId
   );
 
-  // Memoize hotspots to prevent unnecessary re-renders
-  const currentHotspots = useMemo(() => {
-    return currentRoom?.hotspots || [];
-  }, [currentRoomId, allRooms]);
-
   // Auto open admin panel if no rooms
-  const hasNoRooms = allRooms.length === 0;
+  const hasNoRooms = houseData.rooms.length === 0;
+
+  // Handle room change
+  const handleRoomChange = (roomId: string) => {
+    setCurrentRoomId(roomId);
+  };
 
   // Handle hotspot click
-  const handleHotspotClick = useCallback((hotspot: Hotspot) => {
+  const handleHotspotClick = (hotspot: Hotspot) => {
     if (hotspot.targetRoom) {
       // Navigate to linked room
-      setCurrentRoomId(hotspot.targetRoom);
+      handleRoomChange(hotspot.targetRoom);
     }
-  }, []);
-
-  // Handle room change with animation (find hotspot and animate to it)
-  const handleRoomChangeWithAnimation = useCallback(
-    (targetRoomId: string) => {
-      if (!currentRoom || targetRoomId === currentRoomId) return;
-
-      // Find hotspot in current room that links to target room
-      const hotspot = currentRoom.hotspots.find(
-        (h) => h.targetRoom === targetRoomId
-      );
-
-      if (hotspot) {
-        // Trigger animation to hotspot, then navigate
-        setTriggerHotspot(hotspot);
-      } else {
-        // No hotspot found, navigate directly
-        setCurrentRoomId(targetRoomId);
-      }
-    },
-    [currentRoom, currentRoomId]
-  );
+  };
 
   return (
     <div className="d-flex flex-column vh-100 bg-light">
@@ -135,20 +83,32 @@ const App = () => {
       <div className="flex-fill d-flex p-3 overflow-hidden">
         {/* Empty State */}
         {hasNoRooms ? (
-          <div className="flex-fill d-flex align-items-center justify-content-center bg-white rounded shadow">
-            <div className="text-center p-5">
-              <i className="bi bi-house-x display-1 text-muted mb-3"></i>
-              <h3 className="text-muted mb-3">No Rooms Available</h3>
-              <p className="text-muted mb-4">
-                Please add rooms using Admin Mode to get started.
+          <div className="flex-fill d-flex align-items-center justify-content-center bg-white rounded">
+            <div className="text-center p-5" style={{ maxWidth: "600px" }}>
+              <h2 className="display-5 fw-bold text-dark mb-3">
+                Welcome to 3D House Tour Builder!
+              </h2>
+              <p className="text-muted mb-4 fs-5">
+                Get started by adding your first room with panorama images
               </p>
-              <button
-                onClick={() => setShowAdminPanel(true)}
-                className="btn btn-primary"
-              >
-                <i className="bi bi-gear-fill me-2"></i>
-                Open Admin Panel
-              </button>
+              <div className="d-flex justify-content-center mb-4">
+                <button
+                  onClick={() => setShowAdminPanel(true)}
+                  className="btn btn-primary btn-lg"
+                >
+                  <i className="bi bi-plus-circle me-2"></i>
+                  Open Admin Mode
+                </button>
+              </div>
+              <div className="alert alert-info text-start">
+                <strong>Quick Start:</strong>
+                <ol className="mb-0 mt-2">
+                  <li>Click "Open Admin Mode" to add rooms</li>
+                  <li>Enter Room ID, Label, Floor, and Panorama URL</li>
+                  <li>Click on 3D view to place hotspots</li>
+                  <li>Configure hotspots (link to other rooms or show info)</li>
+                </ol>
+              </div>
             </div>
           </div>
         ) : (
@@ -161,10 +121,9 @@ const App = () => {
               >
                 <PanoramaViewer
                   panoramaUrl={currentRoom.panorama.url}
-                  hotspots={currentHotspots}
+                  hotspots={currentRoom.hotspots}
                   onHotspotClick={handleHotspotClick}
                   roomLabel={currentRoom.room_label}
-                  triggerHotspot={triggerHotspot}
                 />
 
                 {/* MiniMap Overlay - Top Right Corner */}
@@ -187,7 +146,7 @@ const App = () => {
                         minimapConfig={houseData.minimap}
                         rooms={houseData.rooms}
                         currentRoomId={currentRoomId}
-                        onRoomChange={handleRoomChangeWithAnimation}
+                        onRoomChange={handleRoomChange}
                         isEditMode={false}
                       />
                       {/* Toggle button - Hide/Show */}

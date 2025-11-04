@@ -37,22 +37,15 @@ declare global {
     url: string;
     width: number;
     height: number;
-  }
-
-  // Floor configuration - each floor has its own minimap and rooms
-  export interface Floor {
-    floor_id: string; // e.g., "floor_1", "floor_2"
-    floor_number: number; // 1, 2, 3, etc.
-    floor_label: string; // e.g., "Ground Floor", "First Floor"
-    minimap: MinimapConfig;
-    rooms: Room[];
+    floor: number; // Floor number for this minimap
   }
 
   // House data structure
   export interface HouseData {
     houseName: string;
     description: string;
-    floors: Floor[]; // Array of floors
+    minimap: MinimapConfig;
+    rooms: Room[];
   }
 
   // Component Props
@@ -87,8 +80,8 @@ declare global {
 
   export interface ImageUploaderProps {
     onImageUploaded: (url: string) => void;
-    label?: string;
     currentUrl?: string;
+    label?: string;
   }
 
   export interface MiniMapProps {

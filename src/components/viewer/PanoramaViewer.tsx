@@ -29,6 +29,147 @@ interface CanvasRenderingContext2DExtended extends CanvasRenderingContext2D {
   ): void;
 }
 
+// Function to add/update hotspots in scene (outside component to avoid recreating)
+const addHotspots = (
+  scene: THREE.Scene,
+  hotspots: Hotspot[],
+  hotspotsRef: React.MutableRefObject<THREE.Object3D[]>
+) => {
+  // Clear old hotspots
+  hotspotsRef.current.forEach((hotspot) => {
+    scene.remove(hotspot);
+  });
+  hotspotsRef.current = [];
+
+  hotspots.forEach((hotspot) => {
+    // Calculate position from pitch and yaw
+    const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
+    const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
+    const radius = 400;
+
+    const x = radius * Math.cos(pitch) * Math.sin(yaw);
+    const y = radius * Math.sin(pitch);
+    const z = radius * Math.cos(pitch) * Math.cos(yaw);
+
+    // Create icon hotspot marker using canvas with Bootstrap icon
+    const iconCanvas = document.createElement("canvas");
+    const iconContext = iconCanvas.getContext("2d");
+    if (!iconContext) return;
+
+    iconCanvas.width = 256;
+    iconCanvas.height = 256;
+
+    // Draw arrow-up-circle icon (Bootstrap outline-primary style)
+    const primaryColor = "black"; // Bootstrap primary color
+
+    // Draw circle background (slightly filled for better visibility)
+    iconContext.fillStyle = "gray";
+    iconContext.beginPath();
+    iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+    iconContext.fill();
+
+    // Draw circle outline
+    iconContext.strokeStyle = primaryColor;
+    iconContext.lineWidth = 12;
+    iconContext.beginPath();
+    iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+    iconContext.stroke();
+
+    // Draw arrow up
+    iconContext.strokeStyle = primaryColor;
+    iconContext.lineWidth = 12;
+    iconContext.lineCap = "round";
+    iconContext.lineJoin = "round";
+
+    // Arrow shaft
+    iconContext.beginPath();
+    iconContext.moveTo(128, 180);
+    iconContext.lineTo(128, 80);
+    iconContext.stroke();
+
+    // Arrow head
+    iconContext.beginPath();
+    iconContext.moveTo(128, 80);
+    iconContext.lineTo(90, 118);
+    iconContext.stroke();
+
+    iconContext.beginPath();
+    iconContext.moveTo(128, 80);
+    iconContext.lineTo(166, 118);
+    iconContext.stroke();
+
+    const iconTexture = new THREE.CanvasTexture(iconCanvas);
+    const iconMaterial = new THREE.SpriteMaterial({
+      map: iconTexture,
+      transparent: true,
+    });
+    const iconSprite = new THREE.Sprite(iconMaterial);
+
+    iconSprite.position.set(x, y, z);
+    iconSprite.scale.set(40, 40, 1); // Larger icon
+    iconSprite.userData.hotspot = hotspot;
+    iconSprite.userData.isIcon = true; // Mark as icon for hover effect
+    iconSprite.userData.basePosition = { x, y, z }; // Store base position
+
+    scene.add(iconSprite);
+    hotspotsRef.current.push(iconSprite);
+
+    // Add text label using canvas texture
+    if (hotspot.label) {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext(
+        "2d"
+      ) as CanvasRenderingContext2DExtended | null;
+      if (!context) return;
+
+      // Measure text to calculate proper canvas size
+      context.font = "bold 64px Arial";
+      const textMetrics = context.measureText(hotspot.label);
+      const textWidth = textMetrics.width;
+      const padding = 40; // Padding around text
+      const borderRadius = 20;
+
+      canvas.width = textWidth + padding * 2;
+      canvas.height = 160;
+
+      // Re-set font after canvas resize
+      context.font = "bold 64px Arial";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+
+      // Background with rounded corners
+      context.fillStyle = "rgba(0, 0, 0, 0.7)";
+      context.roundRect(0, 0, canvas.width, canvas.height, borderRadius);
+      context.fill();
+
+      // Text
+      context.fillStyle = "white";
+      context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+      const labelSprite = new THREE.Sprite(labelMaterial);
+
+      // Calculate aspect ratio for proper scaling
+      const aspectRatio = canvas.width / canvas.height;
+      const labelHeight = 17.5;
+      const labelWidth = labelHeight * aspectRatio;
+
+      // Position label below icon
+      labelSprite.position.set(x, y - 30, z);
+      labelSprite.scale.set(labelWidth, labelHeight, 1);
+      labelSprite.userData.hotspot = hotspot;
+      labelSprite.userData.baseYOffset = -30; // Store base offset
+
+      // Link label to icon for hover effect
+      iconSprite.userData.labelSprite = labelSprite;
+
+      scene.add(labelSprite);
+      hotspotsRef.current.push(labelSprite);
+    }
+  });
+};
+
 /**
  * Component hiển thị panorama 360° bằng Three.js
  */
@@ -99,145 +240,7 @@ const PanoramaViewer = ({
       }
     );
 
-    // Function to add hotspots to scene
-    const addHotspots = (scene: THREE.Scene, hotspots: Hotspot[]) => {
-      // Clear old hotspots
-      hotspotsRef.current.forEach((hotspot) => {
-        scene.remove(hotspot);
-      });
-      hotspotsRef.current = [];
-
-      hotspots.forEach((hotspot) => {
-        // Calculate position from pitch and yaw
-        const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
-        const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
-        const radius = 400;
-
-        const x = radius * Math.cos(pitch) * Math.sin(yaw);
-        const y = radius * Math.sin(pitch);
-        const z = radius * Math.cos(pitch) * Math.cos(yaw);
-
-        // Create icon hotspot marker using canvas with Bootstrap icon
-        const iconCanvas = document.createElement("canvas");
-        const iconContext = iconCanvas.getContext("2d");
-        if (!iconContext) return;
-
-        iconCanvas.width = 256;
-        iconCanvas.height = 256;
-
-        // Draw arrow-up-circle icon (Bootstrap outline-primary style)
-        const primaryColor = "black"; // Bootstrap primary color
-
-        // Draw circle background (slightly filled for better visibility)
-        iconContext.fillStyle = "gray";
-        iconContext.beginPath();
-        iconContext.arc(128, 128, 110, 0, Math.PI * 2);
-        iconContext.fill();
-
-        // Draw circle outline
-        iconContext.strokeStyle = primaryColor;
-        iconContext.lineWidth = 12;
-        iconContext.beginPath();
-        iconContext.arc(128, 128, 110, 0, Math.PI * 2);
-        iconContext.stroke();
-
-        // Draw arrow up
-        iconContext.strokeStyle = primaryColor;
-        iconContext.lineWidth = 12;
-        iconContext.lineCap = "round";
-        iconContext.lineJoin = "round";
-
-        // Arrow shaft
-        iconContext.beginPath();
-        iconContext.moveTo(128, 180);
-        iconContext.lineTo(128, 80);
-        iconContext.stroke();
-
-        // Arrow head
-        iconContext.beginPath();
-        iconContext.moveTo(128, 80);
-        iconContext.lineTo(90, 118);
-        iconContext.stroke();
-
-        iconContext.beginPath();
-        iconContext.moveTo(128, 80);
-        iconContext.lineTo(166, 118);
-        iconContext.stroke();
-
-        const iconTexture = new THREE.CanvasTexture(iconCanvas);
-        const iconMaterial = new THREE.SpriteMaterial({
-          map: iconTexture,
-          transparent: true,
-        });
-        const iconSprite = new THREE.Sprite(iconMaterial);
-
-        iconSprite.position.set(x, y, z);
-        iconSprite.scale.set(40, 40, 1); // Larger icon
-        iconSprite.userData.hotspot = hotspot;
-        iconSprite.userData.isIcon = true; // Mark as icon for hover effect
-        iconSprite.userData.basePosition = { x, y, z }; // Store base position
-
-        scene.add(iconSprite);
-        hotspotsRef.current.push(iconSprite);
-
-        // Add text label using canvas texture
-        if (hotspot.label) {
-          const canvas = document.createElement("canvas");
-          const context = canvas.getContext(
-            "2d"
-          ) as CanvasRenderingContext2DExtended | null;
-          if (!context) return;
-
-          // Measure text to calculate proper canvas size
-          context.font = "bold 64px Arial";
-          const textMetrics = context.measureText(hotspot.label);
-          const textWidth = textMetrics.width;
-          const padding = 40; // Padding around text
-          const borderRadius = 20;
-
-          canvas.width = textWidth + padding * 2;
-          canvas.height = 160;
-
-          // Re-set font after canvas resize
-          context.font = "bold 64px Arial";
-          context.textAlign = "center";
-          context.textBaseline = "middle";
-
-          // Background with rounded corners
-          context.fillStyle = "rgba(0, 0, 0, 0.7)";
-          context.roundRect(0, 0, canvas.width, canvas.height, borderRadius);
-          context.fill();
-
-          // Text
-          context.fillStyle = "white";
-          context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
-
-          const texture = new THREE.CanvasTexture(canvas);
-          const labelMaterial = new THREE.SpriteMaterial({ map: texture });
-          const labelSprite = new THREE.Sprite(labelMaterial);
-
-          // Calculate aspect ratio for proper scaling
-          const aspectRatio = canvas.width / canvas.height;
-          const labelHeight = 17.5;
-          const labelWidth = labelHeight * aspectRatio;
-
-          // Position label below icon
-          labelSprite.position.set(x, y - 30, z);
-          labelSprite.scale.set(labelWidth, labelHeight, 1);
-          labelSprite.userData.hotspot = hotspot;
-          labelSprite.userData.baseYOffset = -30; // Store base offset
-
-          // Link label to icon for hover effect
-          iconSprite.userData.labelSprite = labelSprite;
-
-          scene.add(labelSprite);
-          hotspotsRef.current.push(labelSprite);
-        }
-      });
-    };
-
-    // Add hotspots
-    addHotspots(scene, hotspots);
+    // Note: Hotspots are added in a separate useEffect to avoid recreating scene
 
     // Mouse controls using spherical coordinates (lon/lat)
     const controls: Controls = {
@@ -577,7 +580,13 @@ const PanoramaViewer = ({
       }
       renderer.dispose();
     };
-  }, [panoramaUrl, hotspots, onHotspotClick]);
+  }, [panoramaUrl]); // Only recreate scene when panoramaUrl changes
+
+  // Separate effect to update hotspots without recreating the entire scene
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    addHotspots(sceneRef.current, hotspots, hotspotsRef);
+  }, [hotspots]); // Only update hotspots when they change
 
   // Handle external hotspot trigger (from minimap)
   useEffect(() => {
