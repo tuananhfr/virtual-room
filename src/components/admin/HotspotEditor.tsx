@@ -33,7 +33,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<MouseControls | null>(null);
-  const hotspotsRef = useRef<THREE.Mesh[]>([]);
+  const hotspotsRef = useRef<THREE.Object3D[]>([]);
   const [selectedHotspot, setSelectedHotspot] = useState<{
     hotspot: Hotspot;
     index: number;
@@ -80,10 +80,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       powerPreference: "high-performance",
       precision: "mediump",
     });
-    renderer.setSize(
-      container.clientWidth,
-      container.clientHeight
-    );
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for performance
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -171,8 +168,10 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       // Check if clicking existing hotspot
       const hotspotIntersects = raycaster.intersectObjects(hotspotsRef.current);
       if (hotspotIntersects.length > 0) {
-        const hotspot = hotspotIntersects[0].object.userData.hotspot;
-        setSelectedHotspot(hotspot);
+        const data = hotspotIntersects[0].object.userData.hotspot as Hotspot & {
+          index: number;
+        };
+        setSelectedHotspot({ hotspot: data, index: data.index });
         return;
       }
 
@@ -223,7 +222,9 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       camera.rotation.x = controls.rotation.x;
 
       hotspotsRef.current.forEach((hotspot) => {
-        hotspot.lookAt(camera.position);
+        if (hotspot instanceof THREE.Mesh) {
+          hotspot.lookAt(camera.position);
+        }
       });
 
       renderer.render(scene, camera);
@@ -239,7 +240,11 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       renderer.domElement.removeEventListener("mousemove", onMouseMove);
       renderer.domElement.removeEventListener("click", onClick);
 
-      if (container && renderer.domElement && container.contains(renderer.domElement)) {
+      if (
+        container &&
+        renderer.domElement &&
+        container.contains(renderer.domElement)
+      ) {
         container.removeChild(renderer.domElement);
       }
       renderer.dispose();
@@ -254,28 +259,139 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     hotspotsRef.current = [];
 
     hotspots.forEach((hotspot, index) => {
-      const geometry = new THREE.SphereGeometry(15, 32, 32);
-      const color = hotspot.type === "link" ? 0x00ff00 : 0xff0000;
-
-      const material = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.8,
-      });
-      const sphere = new THREE.Mesh(geometry, material);
-
+      // Calculate position from pitch and yaw
       const pitch = THREE.MathUtils.degToRad(hotspot.pitch || 0);
       const yaw = THREE.MathUtils.degToRad(hotspot.yaw || 0);
       const radius = 400;
 
-      sphere.position.x = radius * Math.cos(pitch) * Math.sin(yaw);
-      sphere.position.y = radius * Math.sin(pitch);
-      sphere.position.z = radius * Math.cos(pitch) * Math.cos(yaw);
+      const x = radius * Math.cos(pitch) * Math.sin(yaw);
+      const y = radius * Math.sin(pitch);
+      const z = radius * Math.cos(pitch) * Math.cos(yaw);
 
-      sphere.userData.hotspot = { ...hotspot, index };
+      // Create icon hotspot marker using canvas like in viewer
+      const iconCanvas = document.createElement("canvas");
+      const iconContext = iconCanvas.getContext("2d");
+      if (!iconContext) return;
 
-      scene.add(sphere);
-      hotspotsRef.current.push(sphere);
+      iconCanvas.width = 256;
+      iconCanvas.height = 256;
+
+      const primaryColor = "black";
+
+      // Background circle (slightly filled)
+      iconContext.fillStyle = "gray";
+      iconContext.beginPath();
+      iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+      iconContext.fill();
+
+      // Circle outline
+      iconContext.strokeStyle = primaryColor;
+      iconContext.lineWidth = 12;
+      iconContext.beginPath();
+      iconContext.arc(128, 128, 110, 0, Math.PI * 2);
+      iconContext.stroke();
+
+      // Arrow up
+      iconContext.strokeStyle = primaryColor;
+      iconContext.lineWidth = 12;
+      iconContext.lineCap = "round";
+      iconContext.lineJoin = "round";
+
+      // Shaft
+      iconContext.beginPath();
+      iconContext.moveTo(128, 180);
+      iconContext.lineTo(128, 80);
+      iconContext.stroke();
+
+      // Head
+      iconContext.beginPath();
+      iconContext.moveTo(128, 80);
+      iconContext.lineTo(90, 118);
+      iconContext.stroke();
+      iconContext.beginPath();
+      iconContext.moveTo(128, 80);
+      iconContext.lineTo(166, 118);
+      iconContext.stroke();
+
+      const iconTexture = new THREE.CanvasTexture(iconCanvas);
+      const iconMaterial = new THREE.SpriteMaterial({
+        map: iconTexture,
+        transparent: true,
+      });
+      const iconSprite = new THREE.Sprite(iconMaterial);
+      iconSprite.position.set(x, y, z);
+      iconSprite.scale.set(40, 40, 1);
+      iconSprite.userData.hotspot = { ...hotspot, index };
+      iconSprite.userData.isIcon = true;
+      iconSprite.userData.basePosition = { x, y, z };
+      scene.add(iconSprite);
+      hotspotsRef.current.push(iconSprite);
+
+      // Add text label
+      if (hotspot.label) {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext(
+          "2d"
+        ) as CanvasRenderingContext2D | null;
+        if (!context) return;
+
+        context.font = "bold 64px Arial";
+        const textMetrics = context.measureText(hotspot.label);
+        const textWidth = textMetrics.width;
+        const padding = 40;
+        const borderRadius = 20;
+
+        canvas.width = textWidth + padding * 2;
+        canvas.height = 160;
+
+        // Re-set font after resize
+        context.font = "bold 64px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+
+        // Background rounded rect
+        context.fillStyle = "rgba(0, 0, 0, 0.7)";
+        // Fallback rounded rect path
+        const w = canvas.width,
+          h = canvas.height,
+          r = borderRadius;
+        context.beginPath();
+        context.moveTo(r, 0);
+        context.lineTo(w - r, 0);
+        context.quadraticCurveTo(w, 0, w, r);
+        context.lineTo(w, h - r);
+        context.quadraticCurveTo(w, h, w - r, h);
+        context.lineTo(r, h);
+        context.quadraticCurveTo(0, h, 0, h - r);
+        context.lineTo(0, r);
+        context.quadraticCurveTo(0, 0, r, 0);
+        context.closePath();
+        context.fill();
+
+        // Text
+        context.fillStyle = "white";
+        context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const labelMaterial = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+        });
+        const labelSprite = new THREE.Sprite(labelMaterial);
+
+        const aspectRatio = canvas.width / canvas.height;
+        const labelHeight = 17.5;
+        const labelWidth = labelHeight * aspectRatio;
+
+        labelSprite.position.set(x, y - 30, z);
+        labelSprite.scale.set(labelWidth, labelHeight, 1);
+        labelSprite.userData.hotspot = { ...hotspot, index };
+        labelSprite.userData.baseYOffset = -30;
+        iconSprite.userData.labelSprite = labelSprite;
+
+        scene.add(labelSprite);
+        hotspotsRef.current.push(labelSprite);
+      }
     });
   };
 
@@ -298,9 +414,14 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 
       {/* Selected hotspot edit form */}
       {selectedHotspot && (
-        <div className="position-absolute top-0 end-0 m-3 bg-white shadow-lg rounded p-3" style={{ minWidth: "350px" }}>
+        <div
+          className="position-absolute top-0 end-0 m-3 bg-white shadow-lg rounded p-3"
+          style={{ minWidth: "350px" }}
+        >
           <div className="mb-3">
-            <label className="form-label fw-semibold small">Hotspot Label:</label>
+            <label className="form-label fw-semibold small">
+              Hotspot Label:
+            </label>
             <input
               type="text"
               className="form-control form-control-sm"
@@ -331,13 +452,15 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
               value={selectedHotspot.hotspot.targetRoom || ""}
               onChange={(e) => {
                 const targetRoomId = e.target.value;
-                const targetRoom = availableRooms.find((r) => r.room_id === targetRoomId);
+                const targetRoom = availableRooms.find(
+                  (r) => r.room_id === targetRoomId
+                );
                 if (onUpdateHotspot) {
                   onUpdateHotspot(selectedHotspot.index, {
                     ...selectedHotspot.hotspot,
                     targetRoom: targetRoomId,
                     label: targetRoom
-                      ? `Đi đến ${targetRoom.room_label}`
+                      ? `Go to ${targetRoom.room_label}`
                       : selectedHotspot.hotspot.label,
                   });
                   setSelectedHotspot({
@@ -346,7 +469,7 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
                       ...selectedHotspot.hotspot,
                       targetRoom: targetRoomId,
                       label: targetRoom
-                        ? `Đi đến ${targetRoom.room_label}`
+                        ? `Go to ${targetRoom.room_label}`
                         : selectedHotspot.hotspot.label,
                     },
                   });
@@ -364,7 +487,8 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 
           <div className="small text-muted mb-3">
             <i className="bi bi-geo-alt me-1"></i>
-            Pitch: {selectedHotspot.hotspot.pitch.toFixed(2)}° | Yaw: {selectedHotspot.hotspot.yaw.toFixed(2)}°
+            Pitch: {selectedHotspot.hotspot.pitch.toFixed(2)}° | Yaw:{" "}
+            {selectedHotspot.hotspot.yaw.toFixed(2)}°
           </div>
 
           <div className="d-flex gap-2">
