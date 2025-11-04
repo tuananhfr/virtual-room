@@ -186,6 +186,14 @@ const PanoramaViewer = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<Controls | null>(null);
   const hotspotsRef = useRef<THREE.Object3D[]>([]);
+  const vignetteRef = useRef<HTMLDivElement | null>(null);
+  const isEntryAnimPendingRef = useRef<boolean>(true);
+  const entryAnimStartRef = useRef<number>(0);
+  const entryAnimDurationMsRef = useRef<number>(500);
+  const isDollyOutRef = useRef<boolean>(false);
+  const dollyOutStartRef = useRef<number>(0);
+  const dollyOutDurationMsRef = useRef<number>(700);
+  const pendingNavigateHotspotRef = useRef<Hotspot | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -206,6 +214,11 @@ const PanoramaViewer = ({
     );
     camera.position.set(0, 0, 0.1);
     cameraRef.current = camera;
+
+    // Prepare entry animation: start slightly zoomed-in then relax
+    // Set initial FOV smaller for "đi vào" cảm giác khi phòng mới tải
+    camera.fov = 66;
+    camera.updateProjectionMatrix();
 
     // Initialize renderer with performance optimizations
     const renderer = new THREE.WebGLRenderer({
@@ -233,6 +246,9 @@ const PanoramaViewer = ({
         const material = new THREE.MeshBasicMaterial({ map: texture });
         panoramaSphere = new THREE.Mesh(geometry, material);
         scene.add(panoramaSphere);
+        // Mark entry animation start when texture is ready so first frames are ready
+        isEntryAnimPendingRef.current = true;
+        entryAnimStartRef.current = performance.now();
       },
       undefined,
       (error) => {
@@ -449,8 +465,11 @@ const PanoramaViewer = ({
           controls.isAnimating = true;
           controls.targetLon = targetLon;
           controls.targetLat = targetLat;
+          // After rotation completes, run dolly-out (FOV zoom-in + vignette), then navigate
           controls.animationCallback = () => {
-            onHotspotClick(hotspot);
+            pendingNavigateHotspotRef.current = hotspot;
+            isDollyOutRef.current = true;
+            dollyOutStartRef.current = performance.now();
           };
         }
       }
@@ -532,6 +551,64 @@ const PanoramaViewer = ({
 
       camera.lookAt(x, y, z);
 
+      // Handle entry animation (room just loaded): ease FOV from 66 -> 75 and fade out vignette
+      if (isEntryAnimPendingRef.current && !isDollyOutRef.current) {
+        const now = performance.now();
+        const t = Math.min(
+          1,
+          (now - entryAnimStartRef.current) / entryAnimDurationMsRef.current
+        );
+        // easeOutCubic
+        const easeT = 1 - Math.pow(1 - t, 3);
+        const startFov = 66;
+        const endFov = 75;
+        const fov = startFov + (endFov - startFov) * easeT;
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+
+        // Vignette fade out from 0.12 -> 0
+        if (vignetteRef.current) {
+          const opacity = (1 - easeT) * 0.12;
+          vignetteRef.current.style.opacity = String(opacity);
+        }
+
+        if (t >= 1) {
+          isEntryAnimPendingRef.current = false;
+          if (vignetteRef.current) vignetteRef.current.style.opacity = "0";
+        }
+      }
+
+      // Handle dolly-out before navigation: ease FOV from current -> 60 and fade in vignette
+      if (isDollyOutRef.current) {
+        const now = performance.now();
+        const t = Math.min(
+          1,
+          (now - dollyOutStartRef.current) / dollyOutDurationMsRef.current
+        );
+        // easeInOutCubic
+        const easeT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const currentFov = camera.fov;
+        const targetFov = 60;
+        const fov = currentFov + (targetFov - currentFov) * easeT;
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+
+        if (vignetteRef.current) {
+          const opacity = 0.0 + 0.15 * easeT; // fade in to 0.15
+          vignetteRef.current.style.opacity = String(opacity);
+        }
+
+        if (t >= 1) {
+          isDollyOutRef.current = false;
+          // Trigger navigation once dolly-out is complete
+          const hotspot = pendingNavigateHotspotRef.current;
+          pendingNavigateHotspotRef.current = null;
+          if (hotspot) {
+            onHotspotClick(hotspot);
+          }
+        }
+      }
+
       renderer.render(scene, camera);
     };
 
@@ -608,12 +685,14 @@ const PanoramaViewer = ({
       );
       const targetLat = THREE.MathUtils.radToDeg(Math.asin(hotspotY));
 
-      // Set animation target to look at the hotspot
+      // Set animation target to look at the hotspot first, then dolly-out
       controls.isAnimating = true;
       controls.targetLon = targetLon;
       controls.targetLat = targetLat;
       controls.animationCallback = () => {
-        onHotspotClick(triggerHotspot);
+        pendingNavigateHotspotRef.current = triggerHotspot;
+        isDollyOutRef.current = true;
+        dollyOutStartRef.current = performance.now();
       };
     }
   }, [triggerHotspot, onHotspotClick]);
@@ -639,6 +718,20 @@ const PanoramaViewer = ({
           </div>
         </div>
       )}
+      {/* Vignette overlay for transition */}
+      <div
+        ref={vignetteRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 99,
+          pointerEvents: "none",
+          opacity: 0,
+          transition: "opacity 120ms linear",
+          background:
+            "radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%)",
+        }}
+      />
     </div>
   );
 };
