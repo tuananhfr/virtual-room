@@ -11,6 +11,7 @@ const App = () => {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showMinimap, setShowMinimap] = useState(true);
   const minimapToggleButtonRef = useRef<HTMLButtonElement>(null);
+  const [triggerHotspot, setTriggerHotspot] = useState<Hotspot | null>(null);
 
   // tự động chọn phòng đầu tiên khi có data
   useEffect(() => {
@@ -33,17 +34,42 @@ const App = () => {
     (room: Room) => room.room_id === currentRoomId
   );
 
+  // reset triggerHotspot khi panorama URL thay đổi (phòng đã chuyển xong)
+  useEffect(() => {
+    if (triggerHotspot && currentRoom) {
+      // Reset sau khi panorama đã load (tránh trigger lặp lại)
+      setTriggerHotspot(null);
+    }
+  }, [currentRoom?.panorama.url, triggerHotspot]);
+
   const hasNoRooms = houseData.rooms.length === 0;
 
-  // chuyển phòng
+  // chuyển phòng (từ minimap hoặc nguồn khác)
   const handleRoomChange = (roomId: string) => {
+    // Nếu đang ở phòng khác, tìm hotspot liên kết tới phòng đích để trigger animation
+    if (currentRoomId && currentRoomId !== roomId && currentRoom) {
+      const linkingHotspot = currentRoom.hotspots.find(
+        (h) => h.targetRoom === roomId
+      );
+
+      if (linkingHotspot) {
+        // Tìm thấy hotspot liên kết -> trigger animation
+        setTriggerHotspot(linkingHotspot);
+        return; // Chuyển phòng sẽ được xử lý trong handleHotspotClick sau animation
+      }
+    }
+
+    // Không có hotspot liên kết hoặc cùng phòng -> chuyển trực tiếp
     setCurrentRoomId(roomId);
   };
 
   // xử lý click hotspot
   const handleHotspotClick = (hotspot: Hotspot) => {
+    // Reset triggerHotspot sau khi animation xong
+    setTriggerHotspot(null);
+
     if (hotspot.targetRoom) {
-      handleRoomChange(hotspot.targetRoom);
+      setCurrentRoomId(hotspot.targetRoom);
     }
   };
 
@@ -120,6 +146,7 @@ const App = () => {
                   hotspots={currentRoom.hotspots}
                   onHotspotClick={handleHotspotClick}
                   roomLabel={currentRoom.room_label}
+                  triggerHotspot={triggerHotspot}
                 />
 
                 {/* MiniMap Overlay - Top Right Corner */}
