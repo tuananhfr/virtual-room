@@ -35,8 +35,14 @@ const addHotspots = (
   hotspots: Hotspot[],
   hotspotsRef: React.MutableRefObject<THREE.Object3D[]>
 ) => {
-  // xóa hotspots cũ
+  // xóa hotspots cũ và dispose textures
   hotspotsRef.current.forEach((hotspot) => {
+    if (hotspot instanceof THREE.Sprite) {
+      if (hotspot.material.map) {
+        hotspot.material.map.dispose();
+      }
+      hotspot.material.dispose();
+    }
     scene.remove(hotspot);
   });
   hotspotsRef.current = [];
@@ -98,6 +104,10 @@ const addHotspots = (
     iconContext.stroke();
 
     const iconTexture = new THREE.CanvasTexture(iconCanvas);
+    // Prevent WebGL immutable texture warning by disabling mipmap generation
+    iconTexture.minFilter = THREE.LinearFilter;
+    iconTexture.magFilter = THREE.LinearFilter;
+    iconTexture.generateMipmaps = false;
     const iconMaterial = new THREE.SpriteMaterial({
       map: iconTexture,
       transparent: true,
@@ -146,6 +156,10 @@ const addHotspots = (
       context.fillText(hotspot.label, canvas.width / 2, canvas.height / 2);
 
       const texture = new THREE.CanvasTexture(canvas);
+      // Prevent WebGL immutable texture warning by disabling mipmap generation
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
       const labelMaterial = new THREE.SpriteMaterial({ map: texture });
       const labelSprite = new THREE.Sprite(labelMaterial);
 
@@ -476,7 +490,7 @@ const PanoramaViewer = ({
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
-    renderer.domElement.addEventListener("wheel", onWheel);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     renderer.domElement.addEventListener("click", onClick);
     renderer.domElement.addEventListener("touchstart", onTouchStart, {
       passive: true,

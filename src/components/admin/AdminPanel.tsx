@@ -569,8 +569,8 @@ const AdminPanel = ({
                                 {!hasAvailableRooms && (
                                   <div className="text-danger small mb-2">
                                     <i className="bi bi-exclamation-triangle me-1"></i>
-                                    Cần có ít nhất 1 phòng khác để liên kết
-                                    hotspot. Vui lòng thêm phòng trước.
+                                    At least 1 other room is required to connect
+                                    to the hotspot! Please add a room first!
                                   </div>
                                 )}
                               </>
