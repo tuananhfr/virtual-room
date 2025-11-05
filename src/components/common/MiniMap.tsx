@@ -17,6 +17,8 @@ const MiniMap: React.FC<MiniMapProps> = ({
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
   const [isHoveringImage, setIsHoveringImage] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const autoPanRef = useRef<number | null>(null);
+  const autoPanVelocityRef = useRef({ x: 0, y: 0 });
 
   // reset pan khi zoom về 1
   useEffect(() => {
@@ -24,6 +26,94 @@ const MiniMap: React.FC<MiniMapProps> = ({
       setPan({ x: 0, y: 0 });
     }
   }, [zoom]);
+
+  // cleanup auto-pan khi unmount
+  useEffect(() => {
+    return () => {
+      if (autoPanRef.current !== null) {
+        cancelAnimationFrame(autoPanRef.current);
+      }
+    };
+  }, []);
+
+  // Lắng nghe drag event ở document level để bắt khi kéo ra ngoài
+  useEffect(() => {
+    if (!isEditMode || !draggedRoom || !containerRef.current || zoom <= 1) {
+      return;
+    }
+
+    const handleDocumentDragOver = (e: DragEvent) => {
+      e.preventDefault();
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const panSpeed = 5;
+
+      // Tính vị trí chuột so với container
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      let velocityX = 0;
+      let velocityY = 0;
+
+      // Kiểm tra nếu chuột ra ngoài biên -> auto-pan
+      if (mouseX < 0) {
+        velocityX = panSpeed;
+      } else if (mouseX > rect.width) {
+        velocityX = -panSpeed;
+      }
+
+      if (mouseY < 0) {
+        velocityY = panSpeed;
+      } else if (mouseY > rect.height) {
+        velocityY = -panSpeed;
+      }
+
+      // Cập nhật velocity
+      autoPanVelocityRef.current = { x: velocityX, y: velocityY };
+
+      // Bắt đầu auto-pan loop nếu chưa chạy
+      if (autoPanRef.current === null && (velocityX !== 0 || velocityY !== 0)) {
+        const autoPanLoop = () => {
+          const velocity = autoPanVelocityRef.current;
+
+          if (velocity.x !== 0 || velocity.y !== 0) {
+            setPan((prevPan) => {
+              // Tính giới hạn pan dựa trên zoom
+              const maxPan = rect.width * (zoom - 1) / 2;
+              const maxPanY = rect.height * (zoom - 1) / 2;
+
+              const newPan = {
+                x: prevPan.x + velocity.x,
+                y: prevPan.y + velocity.y,
+              };
+
+              // Giới hạn pan trong phạm vi hợp lý
+              newPan.x = Math.max(-maxPan, Math.min(maxPan, newPan.x));
+              newPan.y = Math.max(-maxPanY, Math.min(maxPanY, newPan.y));
+
+              return newPan;
+            });
+            autoPanRef.current = requestAnimationFrame(autoPanLoop);
+          } else {
+            autoPanRef.current = null;
+          }
+        };
+        autoPanRef.current = requestAnimationFrame(autoPanLoop);
+      } else if (autoPanRef.current !== null && velocityX === 0 && velocityY === 0) {
+        cancelAnimationFrame(autoPanRef.current);
+        autoPanRef.current = null;
+      }
+    };
+
+    document.addEventListener("dragover", handleDocumentDragOver);
+
+    return () => {
+      document.removeEventListener("dragover", handleDocumentDragOver);
+    };
+  }, [isEditMode, draggedRoom, zoom]);
 
   if (!minimapConfig.url) {
     return null;
@@ -63,10 +153,17 @@ const MiniMap: React.FC<MiniMapProps> = ({
 
   // di chuyển ảnh
   const handlePanMove = (e: React.MouseEvent) => {
-    if (isPanning) {
+    if (isPanning && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const maxPan = rect.width * (zoom - 1) / 2;
+      const maxPanY = rect.height * (zoom - 1) / 2;
+
+      const newPanX = e.clientX - panStart.x;
+      const newPanY = e.clientY - panStart.y;
+
       setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
+        x: Math.max(-maxPan, Math.min(maxPan, newPanX)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, newPanY)),
       });
     }
   };
@@ -86,6 +183,17 @@ const MiniMap: React.FC<MiniMapProps> = ({
   const handleDragStart = (_: React.DragEvent, room: Room) => {
     if (!isEditMode) return;
     setDraggedRoom(room);
+  };
+
+  // xử lý khi drag kết thúc (kể cả khi hủy)
+  const handleDragEnd = () => {
+    // Dừng auto-pan
+    if (autoPanRef.current !== null) {
+      cancelAnimationFrame(autoPanRef.current);
+      autoPanRef.current = null;
+    }
+    autoPanVelocityRef.current = { x: 0, y: 0 };
+    setDraggedRoom(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -123,10 +231,12 @@ const MiniMap: React.FC<MiniMapProps> = ({
           width: minimapConfig.width,
           height: minimapConfig.height,
           cursor:
-            zoom > 1 && !isEditMode
+            zoom > 1
               ? isPanning
                 ? "grabbing"
                 : "grab"
+              : isEditMode
+              ? "grab"
               : "default",
           // Chặn scroll chaining lên form khi đang hover ảnh
           overscrollBehavior: isHoveringImage ? "contain" : undefined,
@@ -178,6 +288,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
             return (
               <div
                 key={room.room_id}
+                data-room-marker
                 className={`position-absolute rounded-circle border border-3 border-white shadow ${
                   isCurrentRoom || isHovered ? "bg-danger" : "bg-primary"
                 }`}
@@ -186,7 +297,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
                   top: `${y}%`,
                   width: "16px",
                   height: "16px",
-                  cursor: isEditMode ? "move" : "pointer",
+                  cursor: "pointer",
                   opacity: hasPosition ? 1 : 0.5,
                   transform:
                     isCurrentRoom || isHovered
@@ -203,6 +314,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
                 onMouseLeave={() => !isEditMode && setHoveredRoomId(null)}
                 draggable={isEditMode}
                 onDragStart={(e) => handleDragStart(e, room)}
+                onDragEnd={handleDragEnd}
                 title={room.room_label}
               >
                 <div
