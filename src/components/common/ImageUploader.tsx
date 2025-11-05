@@ -42,19 +42,44 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveImage = () => {
+    setPreviewUrl("");
+    onImageUploaded("");
+  };
+
   return (
     <div className="mb-3">
       <label className="form-label fw-semibold">{label}:</label>
 
       {previewUrl && (
         <div className="mb-3">
-          <div className="border rounded p-2 bg-light">
+          <div className="border rounded p-2 bg-light position-relative">
             <img
               src={previewUrl}
               alt="Preview"
               className="img-fluid rounded"
               style={{ maxHeight: "200px", width: "100%", objectFit: "cover" }}
             />
+            <button
+              type="button"
+              className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
+              style={{
+                borderRadius: "50%",
+                width: "28px",
+                height: "28px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveImage();
+              }}
+              title="Remove image"
+            >
+              <i className="bi bi-x"></i>
+            </button>
           </div>
           <small className="text-success d-block mt-1">
             <i className="bi bi-check-circle-fill me-1"></i>

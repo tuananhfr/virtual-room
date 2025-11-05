@@ -11,7 +11,8 @@ const AdminPanel = ({
 }: AdminPanelProps) => {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [showHotspotEditor, setShowHotspotEditor] = useState(false);
-  const [showNewRoomHotspotEditor, setShowNewRoomHotspotEditor] = useState(false);
+  const [showNewRoomHotspotEditor, setShowNewRoomHotspotEditor] =
+    useState(false);
   const [newRoom, setNewRoom] = useState<Room>({
     room_id: "",
     room_label: "",
@@ -126,7 +127,13 @@ const AdminPanel = ({
   };
 
   // thêm hotspot cho phòng mới
-  const handleAddNewRoomHotspot = ({ pitch, yaw }: { pitch: number; yaw: number }) => {
+  const handleAddNewRoomHotspot = ({
+    pitch,
+    yaw,
+  }: {
+    pitch: number;
+    yaw: number;
+  }) => {
     const newHotspot: Hotspot = {
       id: `hs_${Date.now()}`,
       type: "link",
@@ -151,7 +158,10 @@ const AdminPanel = ({
   };
 
   // cập nhật hotspot phòng mới
-  const handleUpdateNewRoomHotspot = (index: number, updatedHotspot: Hotspot) => {
+  const handleUpdateNewRoomHotspot = (
+    index: number,
+    updatedHotspot: Hotspot
+  ) => {
     setNewRoom({
       ...newRoom,
       hotspots: newRoom.hotspots.map((h, i) =>
@@ -233,7 +243,9 @@ const AdminPanel = ({
 
                 {/* Floor Number Input */}
                 <div className="mb-3">
-                  <label className="form-label fw-semibold">Floor Number:</label>
+                  <label className="form-label fw-semibold">
+                    Floor Number:
+                  </label>
                   <input
                     type="number"
                     className="form-control"
@@ -326,13 +338,35 @@ const AdminPanel = ({
                     <label className="form-label">
                       Hotspots ({editingRoom.hotspots.length}):
                     </label>
-                    <button
-                      onClick={() => setShowHotspotEditor(true)}
-                      className="btn btn-primary w-100 mb-3"
-                    >
-                      <i className="bi bi-plus-circle me-2"></i>
-                      Add Hotspot on 3D View
-                    </button>
+                    {(() => {
+                      const availableRooms = houseData.rooms.filter(
+                        (r) => r.room_id !== editingRoom.room_id
+                      );
+                      const hasAvailableRooms = availableRooms.length > 0;
+                      return (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (hasAvailableRooms) {
+                                setShowHotspotEditor(true);
+                              }
+                            }}
+                            disabled={!hasAvailableRooms}
+                            className="btn btn-primary w-100 mb-3"
+                          >
+                            <i className="bi bi-plus-circle me-2"></i>
+                            Add Hotspot on 3D View
+                          </button>
+                          {!hasAvailableRooms && (
+                            <div className="text-danger fs-3 small mb-2">
+                              <i className="bi bi-exclamation-triangle me-1"></i>
+                              At least 1 other room is required to connect
+                              hotspot! Please add room first!
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     <div className="d-flex flex-column gap-2">
                       {editingRoom.hotspots.map((hotspot, index) => (
@@ -432,7 +466,9 @@ const AdminPanel = ({
                     onAddHotspot={handleAddHotspot}
                     onRemoveHotspot={handleRemoveHotspot}
                     onUpdateHotspot={handleUpdateHotspot}
-                    availableRooms={houseData.rooms.filter(r => r.room_id !== editingRoom.room_id)}
+                    availableRooms={houseData.rooms.filter(
+                      (r) => r.room_id !== editingRoom.room_id
+                    )}
                   />
                   <button
                     onClick={() => setShowHotspotEditor(false)}
@@ -457,126 +493,160 @@ const AdminPanel = ({
 
                 {!showNewRoomHotspotEditor ? (
                   <div>
-                    <div className="mb-3">
-                      <label className="form-label">Room ID:</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g., living_room"
-                        value={newRoom.room_id}
-                        onChange={(e) =>
-                          setNewRoom({ ...newRoom, room_id: e.target.value })
+                    <div className="border rounded p-3 mb-3">
+                      <div className="row">
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Room ID:</label>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="e.g., living_room"
+                              value={newRoom.room_id}
+                              onChange={(e) =>
+                                setNewRoom({
+                                  ...newRoom,
+                                  room_id: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Room Label:</label>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="e.g., Living Room"
+                              value={newRoom.room_label}
+                              onChange={(e) =>
+                                setNewRoom({
+                                  ...newRoom,
+                                  room_label: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Panorama Image Uploader */}
+                      <ImageUploader
+                        label="Panorama Image"
+                        currentUrl={newRoom.panorama.url}
+                        onImageUploaded={(url) =>
+                          setNewRoom({
+                            ...newRoom,
+                            panorama: { ...newRoom.panorama, url },
+                          })
                         }
                       />
-                    </div>
 
-                    <div className="mb-3">
-                      <label className="form-label">Room Label:</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g., Living Room"
-                        value={newRoom.room_label}
-                        onChange={(e) =>
-                          setNewRoom({ ...newRoom, room_label: e.target.value })
-                        }
-                      />
-                    </div>
-
-                    {/* Panorama Image Uploader */}
-                    <ImageUploader
-                      label="Panorama Image"
-                      currentUrl={newRoom.panorama.url}
-                      onImageUploaded={(url) =>
-                        setNewRoom({
-                          ...newRoom,
-                          panorama: { ...newRoom.panorama, url },
-                        })
-                      }
-                    />
-
-                    {/* Hotspots List */}
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Hotspots ({newRoom.hotspots.length}):
-                      </label>
-                      {newRoom.panorama.url && (
-                        <button
-                          onClick={() => setShowNewRoomHotspotEditor(true)}
-                          className="btn btn-primary w-100 mb-3"
-                        >
-                          <i className="bi bi-plus-circle me-2"></i>
-                          Add Hotspot on 3D View
-                        </button>
-                      )}
-
-                      <div className="d-flex flex-column gap-2">
-                        {newRoom.hotspots.map((hotspot, index) => (
-                          <div key={index} className="card">
-                            <div className="card-body">
-                              <div className="d-flex justify-content-between align-items-center mb-2">
-                                <strong>{hotspot.label || "Unnamed"}</strong>
-                                <span className="badge bg-success">
-                                  Link to Room
-                                </span>
-                              </div>
-
-                              <div className="d-flex gap-2 mb-2">
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  placeholder="Label (e.g., Go to Kitchen)"
-                                  value={hotspot.label}
-                                  onChange={(e) =>
-                                    handleUpdateNewRoomHotspot(index, {
-                                      ...hotspot,
-                                      label: e.target.value,
-                                    })
-                                  }
-                                />
-
-                                <select
-                                  className="form-select form-select-sm"
-                                  value={hotspot.targetRoom || ""}
-                                  onChange={(e) => {
-                                    const targetRoomId = e.target.value;
-                                    const targetRoom = houseData.rooms.find(
-                                      (r) => r.room_id === targetRoomId
-                                    );
-                                    handleUpdateNewRoomHotspot(index, {
-                                      ...hotspot,
-                                      targetRoom: targetRoomId,
-                                      label: targetRoom
-                                        ? `Đi đến ${targetRoom.room_label}`
-                                        : "Đi đến...",
-                                    });
-                                  }}
-                                >
-                                  <option value="">
-                                    -- Select Target Room --
-                                  </option>
-                                  {houseData.rooms.map((r) => (
-                                    <option key={r.room_id} value={r.room_id}>
-                                      {r.room_label}
-                                    </option>
-                                  ))}
-                                </select>
-
+                      {/* Hotspots List */}
+                      <div className="mb-3">
+                        <label className="form-label">
+                          Hotspots ({newRoom.hotspots.length}):
+                        </label>
+                        {newRoom.panorama.url &&
+                          (() => {
+                            const hasAvailableRooms =
+                              houseData.rooms.length > 0;
+                            return (
+                              <>
                                 <button
-                                  onClick={() => handleRemoveNewRoomHotspot(index)}
-                                  className="btn btn-danger btn-sm"
+                                  onClick={() => {
+                                    if (hasAvailableRooms) {
+                                      setShowNewRoomHotspotEditor(true);
+                                    }
+                                  }}
+                                  disabled={!hasAvailableRooms}
+                                  className="btn btn-primary w-100 mb-3"
                                 >
-                                  <i className="bi bi-trash"></i>
+                                  <i className="bi bi-plus-circle me-2"></i>
+                                  Add Hotspot on 3D View
                                 </button>
-                              </div>
+                                {!hasAvailableRooms && (
+                                  <div className="text-danger small mb-2">
+                                    <i className="bi bi-exclamation-triangle me-1"></i>
+                                    Cần có ít nhất 1 phòng khác để liên kết
+                                    hotspot. Vui lòng thêm phòng trước.
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
 
-                              <div className="small text-muted font-monospace">
-                                Pitch: {hotspot.pitch.toFixed(2)}° | Yaw:{" "}
-                                {hotspot.yaw.toFixed(2)}°
+                        <div className="d-flex flex-column gap-2">
+                          {newRoom.hotspots.map((hotspot, index) => (
+                            <div key={index} className="card">
+                              <div className="card-body">
+                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                  <strong>{hotspot.label || "Unnamed"}</strong>
+                                  <span className="badge bg-success">
+                                    Link to Room
+                                  </span>
+                                </div>
+
+                                <div className="d-flex gap-2 mb-2">
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    placeholder="Label (e.g., Go to Kitchen)"
+                                    value={hotspot.label}
+                                    onChange={(e) =>
+                                      handleUpdateNewRoomHotspot(index, {
+                                        ...hotspot,
+                                        label: e.target.value,
+                                      })
+                                    }
+                                  />
+
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={hotspot.targetRoom || ""}
+                                    onChange={(e) => {
+                                      const targetRoomId = e.target.value;
+                                      const targetRoom = houseData.rooms.find(
+                                        (r) => r.room_id === targetRoomId
+                                      );
+                                      handleUpdateNewRoomHotspot(index, {
+                                        ...hotspot,
+                                        targetRoom: targetRoomId,
+                                        label: targetRoom
+                                          ? `Đi đến ${targetRoom.room_label}`
+                                          : "Đi đến...",
+                                      });
+                                    }}
+                                  >
+                                    <option value="">
+                                      -- Select Target Room --
+                                    </option>
+                                    {houseData.rooms.map((r) => (
+                                      <option key={r.room_id} value={r.room_id}>
+                                        {r.room_label}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <button
+                                    onClick={() =>
+                                      handleRemoveNewRoomHotspot(index)
+                                    }
+                                    className="btn btn-danger btn-sm"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </div>
+
+                                <div className="small text-muted font-monospace">
+                                  Pitch: {hotspot.pitch.toFixed(2)}° | Yaw:{" "}
+                                  {hotspot.yaw.toFixed(2)}°
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -615,56 +685,90 @@ const AdminPanel = ({
               {/* Existing Rooms List - Only show when not in hotspot editor */}
               {!showNewRoomHotspotEditor && (
                 <div className="mb-4">
-                <h3 className="h5 text-primary border-bottom border-primary pb-2 mb-3">
-                  <i className="bi bi-list-ul me-2"></i>
-                  Existing Rooms ({houseData.rooms.length})
-                </h3>
+                  <h3 className="h5 text-primary border-bottom border-primary pb-2 mb-3">
+                    <i className="bi bi-list-ul me-2"></i>
+                    Existing Rooms ({houseData.rooms.length})
+                  </h3>
 
-                <div className="row g-3">
-                  {houseData.rooms.map((room) => (
-                    <div key={room.room_id} className="col-md-6">
-                      <div className="card h-100">
-                        <div className="card-body">
-                          <div className="d-flex justify-content-between align-items-start mb-2">
-                            <div>
-                              <h5 className="card-title h6 mb-1">
-                                {room.room_label}
-                              </h5>
-                              <small className="text-muted">
-                                ({room.room_id})
-                              </small>
+                  <div className="row g-3">
+                    {houseData.rooms.map((room) => (
+                      <div key={room.room_id} className="col-md-6">
+                        <div className="card h-100">
+                          {/* Panorama Preview */}
+                          {room.panorama.url && (
+                            <div className="position-relative">
+                              <img
+                                src={room.panorama.url}
+                                alt={room.room_label}
+                                className="card-img-top"
+                                style={{
+                                  height: "150px",
+                                  objectFit: "cover",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => handleEditRoom(room)}
+                                title="Click to view full image"
+                              />
+                              <button
+                                title="Delete room"
+                                type="button"
+                                className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
+                                style={{
+                                  borderRadius: "50%",
+                                  width: "28px",
+                                  height: "28px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: 0,
+                                }}
+                                onClick={() => handleDeleteRoom(room.room_id)}
+                              >
+                                <i className="bi bi-x"></i>
+                              </button>
                             </div>
-                            <span className="badge bg-primary">
-                              Floor {houseData.minimap.floor}
-                            </span>
-                          </div>
+                          )}
+                          <div className="card-body">
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <div>
+                                <h5 className="card-title h6 mb-1">
+                                  {room.room_label}
+                                </h5>
+                                <small className="text-muted">
+                                  ({room.room_id})
+                                </small>
+                              </div>
+                              <span className="badge bg-primary">
+                                Floor {houseData.minimap.floor}
+                              </span>
+                            </div>
 
-                          <p className="card-text small text-muted mb-3">
-                            {room.hotspots.length} hotspot(s)
-                          </p>
+                            <p className="card-text small text-muted mb-3">
+                              {room.hotspots.length} hotspot(s)
+                            </p>
 
-                          <div className="d-flex gap-2">
-                            <button
-                              onClick={() => handleEditRoom(room)}
-                              className="btn btn-success btn-sm"
-                            >
-                              <i className="bi bi-pencil me-1"></i>
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteRoom(room.room_id)}
-                              className="btn btn-danger btn-sm"
-                            >
-                              <i className="bi bi-trash me-1"></i>
-                              Delete
-                            </button>
+                            <div className="d-flex gap-2">
+                              <button
+                                onClick={() => handleEditRoom(room)}
+                                className="btn btn-success btn-sm"
+                              >
+                                <i className="bi bi-pencil me-1"></i>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRoom(room.room_id)}
+                                className="btn btn-danger btn-sm"
+                              >
+                                <i className="bi bi-trash me-1"></i>
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
             </>
           )}
