@@ -263,6 +263,18 @@ const AdminPanel = ({
                   </small>
                 </div>
 
+                {/* Logo Image Uploader */}
+                <ImageUploader
+                  label="Logo Image"
+                  currentUrl={houseData.minimap.logo}
+                  onImageUploaded={(url) =>
+                    handleUpdateMinimapConfig({
+                      ...houseData.minimap,
+                      logo: url,
+                    })
+                  }
+                />
+
                 {/* MiniMap Preview with drag-to-position */}
                 {houseData.minimap.url && (
                   <div className="p-3 bg-light border rounded">

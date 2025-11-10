@@ -271,6 +271,7 @@ const PanoramaViewer = ({
   onHotspotClick,
   roomLabel,
   triggerHotspot,
+  logoUrl,
 }: PanoramaViewerProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -819,6 +820,24 @@ const PanoramaViewer = ({
           <div className="bg-dark bg-opacity-75 text-white px-4 py-1 rounded-pill shadow-lg">
             <h5 className="mb-1 fw-semibold">{roomLabel}</h5>
           </div>
+        </div>
+      )}
+      {/* Logo Overlay - Bottom Left */}
+      {logoUrl && (
+        <div
+          className="position-absolute bottom-0 start-0 m-3"
+          style={{ zIndex: 100, pointerEvents: "none" }}
+        >
+          <img
+            src={logoUrl}
+            alt="Logo"
+            style={{
+              maxWidth: "150px",
+              maxHeight: "80px",
+              objectFit: "contain",
+              filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+            }}
+          />
         </div>
       )}
       {/* Vignette overlay for transition */}

@@ -36,6 +36,7 @@ declare global {
     width: number;
     height: number;
     floor: number;
+    logo?: string; // logo image URL
   }
 
   // Dữ liệu toàn bộ căn nhà
@@ -55,6 +56,7 @@ declare global {
     editMode?: boolean;
     roomLabel?: string;
     triggerHotspot?: Hotspot | null; // hotspot được trigger từ bên ngoài
+    logoUrl?: string; // logo URL to display in bottom-left corner
   }
 
   export interface RoomSelectorProps {

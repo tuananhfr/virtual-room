@@ -147,6 +147,7 @@ const App = () => {
                   onHotspotClick={handleHotspotClick}
                   roomLabel={currentRoom.room_label}
                   triggerHotspot={triggerHotspot}
+                  logoUrl={houseData.minimap.logo}
                 />
 
                 {/* MiniMap Overlay - Top Right Corner */}
