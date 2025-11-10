@@ -17,6 +17,88 @@ interface MouseControls {
   hasMoved: boolean;
 }
 
+// Panorama type information
+interface PanoramaInfo {
+  type: "equirectangular" | "partial";
+  hFov: number; // Horizontal field of view in degrees
+  vFov: number; // Vertical field of view in degrees
+}
+
+// Detect panorama type based on aspect ratio
+const detectPanoramaType = (image: HTMLImageElement): PanoramaInfo => {
+  const aspectRatio = image.width / image.height;
+
+  // Equirectangular panorama (360° × 180°)
+  if (aspectRatio >= 1.9 && aspectRatio <= 2.1) {
+    return { type: "equirectangular", hFov: 360, vFov: 180 };
+  }
+
+  // Partial panorama from phone (wide aspect ratios)
+  if (aspectRatio > 2.1 && aspectRatio <= 12) {
+    let hFov: number, vFov: number;
+    if (aspectRatio <= 3) {
+      hFov = 180;
+      vFov = 90;
+    } else if (aspectRatio <= 4.5) {
+      hFov = 240;
+      vFov = 100;
+    } else if (aspectRatio <= 6) {
+      hFov = 270;
+      vFov = 110;
+    } else {
+      hFov = 300;
+      vFov = 120;
+    }
+    return { type: "partial", hFov, vFov };
+  }
+
+  // Standard partial panorama
+  const hFov = Math.min(180, aspectRatio * 90);
+  const vFov = Math.min(120, 180 / aspectRatio);
+  return { type: "partial", hFov, vFov };
+};
+
+// Create appropriate geometry based on panorama type
+const createPanoramaGeometry = (panoramaInfo: PanoramaInfo): THREE.SphereGeometry => {
+  const radius = 500;
+
+  // Equirectangular: full sphere
+  if (panoramaInfo.type === "equirectangular") {
+    const geometry = new THREE.SphereGeometry(radius, 60, 40);
+    geometry.scale(-1, 1, 1);
+    return geometry;
+  }
+
+  // Partial panorama: partial sphere
+  const hFovRad = THREE.MathUtils.degToRad(panoramaInfo.hFov);
+  const vFovRad = THREE.MathUtils.degToRad(panoramaInfo.vFov);
+
+  // Horizontal coverage
+  const phiStart = -hFovRad / 2;
+  const phiLength = hFovRad;
+
+  // Vertical coverage - centered on sphere
+  const thetaStart = (Math.PI - vFovRad) / 2;
+  const thetaLength = vFovRad;
+
+  // Dynamic segments based on FOV
+  const widthSegments = Math.max(32, Math.floor((64 * panoramaInfo.hFov) / 360));
+  const heightSegments = Math.max(16, Math.floor((32 * panoramaInfo.vFov) / 180));
+
+  const geometry = new THREE.SphereGeometry(
+    radius,
+    widthSegments,
+    heightSegments,
+    phiStart,
+    phiLength,
+    thetaStart,
+    thetaLength
+  );
+
+  geometry.scale(-1, 1, 1);
+  return geometry;
+};
+
 // Component để chọn vị trí hotspot bằng cách click trên panorama 3D
 const HotspotEditor: React.FC<HotspotEditorProps> = ({
   panoramaUrl,
@@ -82,15 +164,28 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Create sphere for panorama
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1);
-
     // Load texture
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
       panoramaUrl,
       (texture) => {
+        // Detect panorama type based on image dimensions
+        const panoramaInfo = detectPanoramaType(texture.image);
+        console.log(
+          `[HotspotEditor] Detected panorama: ${panoramaInfo.type} (${panoramaInfo.hFov}° × ${panoramaInfo.vFov}°)`
+        );
+
+        // Configure texture settings
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.ClampToEdgeWrapping; // Prevent texture wrapping for partial panoramas
+        texture.wrapT = THREE.ClampToEdgeWrapping; // Prevent texture wrapping for partial panoramas
+        texture.generateMipmaps = false;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+
+        // Create appropriate geometry based on panorama type
+        const geometry = createPanoramaGeometry(panoramaInfo);
         const material = new THREE.MeshBasicMaterial({ map: texture });
         const sphere = new THREE.Mesh(geometry, material);
         scene.add(sphere);
